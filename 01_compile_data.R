@@ -231,14 +231,24 @@ stress1 <- VIEWS_RAM$RAM_stressors |>
   filter(!(Location_Level == "BZ" & Stressor == "Cover of non-native or invasive species"))
 
 browse <- stress1 |> filter(Stressor == "Grazing by native ungulates" |
-                            Stressor_Category == "Excessive Grazing or Herbivory") |>
+                            Stressor_Category == "Excessive Grazing or Herbivory" |
+                            Stressor == "Animal Trampling") |>
           mutate(Location_Level = "AA",
                  Stressor_Category = "Deer Browse Impacts",
                  Stressor = "Excessive Grazing and/or trampling by native ungulates") |>
-  select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv)
+  select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv) |>
+  group_by(Code, Year, Location_Level, Stressor_Category, Stressor) |>
+  summarize(Severity_Indiv = max(Severity_Indiv, na.rm = T), .groups = 'drop')
 
-stress_bind <- stress1 |> filter(!(Stressor == "Grazing by native ungulates")) |>
+stress_bind <- stress1 |> filter(!(Stressor %in% c("Grazing by native ungulates",
+                                                   "Animal Trampling"))) |>
   filter(!(Stressor_Category == "Excessive Grazing or Herbivory"))
+
+
+# Simplify hydrological alteration to either be related to pipes, ditching/channelization, or dams/berm
+# Simplify roads to paved, gravel, vs trail. by buffer vs AA.
+roads <- stress_bind |> filter(grepl("road|Road", Stressor))
+
 
 stress_pre <- rbind(stress_bind, visits_inv, browse)
 
@@ -247,6 +257,7 @@ stress <- left_join(locev,
                     by = c("Code", "Year"))
 
 # ENDED HERE
+
 
 table(stress$Stressor_Category, stress$Stressor)
 table(stress$Stressor_Category)
