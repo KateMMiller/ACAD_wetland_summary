@@ -4,6 +4,7 @@
 
 library(tidyverse)
 library(wetlandACAD)
+library(lme4)
 importRAM(export_protected = T)
 
 names(VIEWS_RAM)
@@ -13,7 +14,6 @@ loc <- VIEWS_RAM$locations
 vmmi <- left_join(vmmi,
                   loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
                   by = "Code")
-
 head(loc)
 head(vmmi)
 range(vmmi$vmmi)
@@ -43,7 +43,7 @@ ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
             fill = "gold", alpha = 0.2) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "forestgreen", alpha = 0.2) +
+            fill = "green", alpha = 0.2) +
   geom_point() + geom_line() + facet_wrap(~HGM_Class)
   # scale_color_manual(values = c("Depression" = "#2A4482",
   #                               "Flats" = "#27D641",
@@ -54,11 +54,11 @@ ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
   ylim(20, 100) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 52.785),
-            fill = "indianred", alpha = 0.2) +
+            fill = "indianred", alpha = 0.6) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
-            fill = "gold", alpha = 0.2) +
+            fill = "gold", alpha = 0.6) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "forestgreen", alpha = 0.2) +
+            fill = "green", alpha = 0.6) +
   geom_point() + geom_line() + facet_wrap(~FWS_Class_Code)
 
 ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
@@ -69,7 +69,7 @@ ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
             fill = "gold", alpha = 0.2) +
   geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "forestgreen", alpha = 0.2) +
+            fill = "green", alpha = 0.2) +
   geom_point() + geom_line() + facet_wrap(~Code)
 
 # thresholds
@@ -150,3 +150,125 @@ ggplot(sum_spp, aes(x = Year, y = mean_wet)) +
 # 0 Facultative
 # 3 Facultative upland
 # 5 Obligate upland
+head(vmmi)
+vmmi$year_cen <- vmmi$Year - min(vmmi$Year)
+vmmi$year_fac <- as.factor(vmmi$year_cen)
+
+# Trend analysis
+
+# VMMI Trends
+vmmimod_full <- lmer(vmmi ~ year_cen + HGM_Class + (1 + year_cen|Code) + (1|year_fac), data = vmmi)
+vmmimod3 <- lmer(vmmi ~ HGM_Class + (1 + year_cen|Code) + (1|year_fac), data = vmmi)
+vmmimod2 <- lmer(vmmi ~ year_cen + (1 + year_cen|Code) + (1|year_fac), data = vmmi)
+vmmimod1 <- lmer(vmmi ~ 1 + (1 + year_cen|Code) + (1|year_fac), data = vmmi)
+
+anova(vmmimod_full, vmmimod3, vmmimod2, vmmimod1)
+plot(vmmimod3)
+qqnorm(residuals(vmmimod3))
+summary(vmmimod3)
+
+# Mean C trends
+meancmod_full <- lmer(meanC ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi)
+meancmod3 <- lmer(meanC ~ HGM_Class + (1 + year_cen|Code), data = vmmi)
+meancmod2 <- lmer(meanC ~ year_cen + (1 + year_cen|Code), data = vmmi)
+meancmod1 <- lmer(meanC ~ 1 + (1 + year_cen|Code), data = vmmi)
+
+anova(meancmod_full, meancmod3, meancmod2, meancmod1)
+plot(meancmod3)
+qqnorm(residuals(meancmod3))
+summary(meancmod3)
+
+# % Bryophyte Trends
+bryomod_full <- lmer(Bryophyte_Cover ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi)
+bryomod3 <- lmer(Bryophyte_Cover ~ HGM_Class + (1 + year_cen|Code), data = vmmi)
+bryomod2 <- lmer(Bryophyte_Cover ~ year_cen + (1 + year_cen|Code), data = vmmi)
+bryomod1 <- lmer(Bryophyte_Cover ~ 1 + (1 + year_cen|Code), data = vmmi)
+
+# Bryo3 didn't converge. Diagnostics aren't very good. Bryo is kind of a weird metric
+anova(bryomod_full, bryomod3, bryomod2, bryomod1)
+plot(bryomod3)
+qqnorm(residuals(bryomod3))
+summary(bryomod3)
+
+# % Tolerant Trends
+tolmod_full <- lmer(Cover_Tolerant ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi)
+tolmod3 <- lmer(Cover_Tolerant ~ HGM_Class + (1 + year_cen|Code), data = vmmi)
+tolmod2 <- lmer(Cover_Tolerant ~ year_cen + (1 + year_cen|Code), data = vmmi)
+tolmod1 <- lmer(Cover_Tolerant ~ 1 + (1 + year_cen|Code), data = vmmi)
+
+# tol3 didn't converge. Diagnostics aren't very good. tol is kind of a weird metric
+anova(tolmod_full, tolmod3, tolmod2, tolmod1)
+plot(tolmod3)
+qqnorm(residuals(tolmod3))
+summary(tolmod3)
+
+# Stressors
+locev <- left_join(VIEWS_RAM$locations |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
+                   VIEWS_RAM$visits |> select(Code, Year, Visit_Type, Buffer_Width_Avg, Buffer_Perim_Percent),
+                   by = "Code") |>
+  filter(Visit_Type == "VS")
+
+# Need to adjust stressors a bit based on how we use them.
+# -- 1. Use presence of invasives from visits for invasive stressor in AA and
+#       drop the one from the BZ which we don't consistently assess.
+# -- 2. Clean up deer impacts. There are 2 places they show up and we haven't
+#       been consistent on when we use either or across years.
+
+visits_inv <- VIEWS_RAM$visits |>
+  filter(Visit_Type == "VS") |>
+  filter(Invasive_Cover > 0) |>
+  mutate(Location_Level = "AA",
+         Stressor_Category = "Invasive Vegetation",
+         Stressor = "Cover of non-native or invasive species",
+         Severity_Indiv = case_when(Invasive_Cover < 1 ~ 1,
+                                    between(Invasive_Cover, 1, 5) ~ 2,
+                                    TRUE ~ 3)) |>
+  select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv)
+
+stress1 <- VIEWS_RAM$RAM_stressors |>
+  filter(Visit_Type == "VS") |>
+  select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv) |>
+  filter(!(Location_Level == "BZ" & Stressor == "Cover of non-native or invasive species"))
+
+browse <- stress1 |> filter(Stressor == "Grazing by native ungulates" |
+                            Stressor_Category == "Excessive Grazing or Herbivory") |>
+          mutate(Location_Level = "AA",
+                 Stressor_Category = "Deer Browse Impacts",
+                 Stressor = "Excessive Grazing and/or trampling by native ungulates") |>
+  select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv)
+
+stress_bind <- stress1 |> filter(!(Stressor == "Grazing by native ungulates")) |>
+  filter(!(Stressor_Category == "Excessive Grazing or Herbivory"))
+
+stress_pre <- rbind(stress_bind, visits_inv, browse)
+
+stress <- left_join(locev,
+                    stress_pre,
+                    by = c("Code", "Year"))
+
+# ENDED HERE
+
+table(stress$Stressor_Category, stress$Stressor)
+table(stress$Stressor_Category)
+head(stress)
+table(stress$Location_Level, stress$Stressor_Category)
+
+# Stressors to drop
+drop_stress <- c("Shrub layer browsed",  # in buffer zone, not consistently used and hard to assess
+
+                 )
+table(stress$Location_Level, stress$stress_cat_simp)
+
+# Browse stressors
+# "Excessive Grazing or Herbivory" # in Excessive Grazing or Herbivory usually to plants
+# "Grazing by native ungulates" # in Stressors to substrate (usually means deer trails)
+
+browse <- stress |> filter(grepl("wildlife herbivory|native ungulates", Stressor))
+table(browse$Code, browse$Stressor)
+
+# Going to combine the two grazing stressors, as I'm not sure they're used consistently
+# to distinguish from different things.
+
+
+# Analysis thoughts
+#--- Try to model vmmi and individual metrics using stressors as predictors?
