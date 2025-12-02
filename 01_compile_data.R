@@ -11,7 +11,7 @@ names(VIEWS_RAM)
 
 vmmi1 <- sumVegMMI()
 loc <- VIEWS_RAM$locations
-vmmi <- left_join(vmmi,
+vmmi <- left_join(vmmi1,
                   loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
                   by = "Code")
 head(loc)
