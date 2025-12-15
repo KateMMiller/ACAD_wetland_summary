@@ -69,7 +69,8 @@ csv2016 <- csv2016a[!grepl("plant_|condition_estimates|veg_mmi", csv2016a)]
 csv2016_name1 <- gsub("nwca16|nwca-2016|nwca_2016", "nwca2016", csv2016)
 csv2016_name2 <- gsub("_-_", "_", csv2016_name1)
 csv2016_name3 <- gsub("-", "_", csv2016_name2)
-csv2016_name <- gsub("nwca2016_site_information_data_0", "nwca2016_site_info", csv2016_name3)
+csv2016_name4 <- gsub("_csv.", ".", csv2016_name3)
+csv2016_name <- gsub("nwca2016_site_information_data_0", "nwca2016_site_info", csv2016_name4)
 
 invisible(
   lapply(seq_along(csv2016), function(x){
@@ -89,7 +90,7 @@ nce_sites_2021 <- siteinfo_2021$UID[siteinfo_2021$RPT_UNIT == "NCE" &
 nce_sites_2021
 csv_list <- list.files(paste0("./data/epa_all/"))
 csv2021a <- csv_list[grepl("nwca-2021|nwca_2021|nwca21_", csv_list)]
-csv2021 <- csv2021a[!grepl("plant|condition_estimates|landscape_metrics", csv2021a)]
+csv2021 <- csv2021a[!grepl("plantcval|plantnative|planttaxa|plantwis|condition_estimates|landscape_metrics", csv2021a)]
 csv2021_name1 <- gsub("nwca21|nwca-2021|nwca_2021", "nwca2021", csv2021)
 csv2021_name2 <- gsub("_-_", "_", csv2021_name1)
 csv2021_name3 <- gsub("-", "_", csv2021_name2)
@@ -113,36 +114,89 @@ invisible(
 #   - Dropped nwca_2016_veg_mmi.csv from initial compile, because doesn't include UID (only SITE_ID)
 #   - Dropped ncwa21_landscape_metrics-data.csv because no UID column (only SiteID)
 
-#--- Combinig data across years ----
+
+#--- Combining data across years ----
+# For the following datasets, I'm row binding data across visits by intersecting the columns each dataset has
+# in common to start with. There may be columns in later datasets that need adding, but I'll deal
+# with that later.
+
 # Site Info
 site11 <- read.csv("./data/epa_nce/nwca2011_site_info.csv")
 site16 <- read.csv("./data/epa_nce/nwca2016_site_info.csv")
 site21 <- read.csv("./data/epa_nce/nwca2021_site_info.csv")
 
-comm_names <- intersect(intersect(names(site11), names(site16)), names(site21))
+comm_site_names <- intersect(intersect(names(site11), names(site16)), names(site21))
 
-site_all <- rbind(site11[,comm_names], site16[,comm_names], site21[,comm_names]) |>
+site_all <- rbind(site11[,comm_site_names], site16[,comm_site_names], site21[,comm_site_names]) |>
   arrange(UNIQUE_ID, DATE_COL, VISIT_NO)
+
+site_all$Date <- as.POSIXct(site_all$DATE_COL, format = "%m/%d/%Y")
+site_all$Year <- format(site_all$Date, format = "%Y")
 
 site_freq <- data.frame(table(site_all$UNIQUE_ID))
 
 table(site_all$RPT_UNIT) #318 NCE
 table(site_all$VISIT_NO) #318 1
+table(site_all$Year) # 12 in 2022?
 
 # Plant data
-# --- Notes ---
-#   - Need C for every species
-#   - % cover bryophyte :
-        # 2016 nwca_2016_vegetation_type_data.csv BRYOPHYTES
-#   - Mean C
-#   - % cover disturbance tolerant
-#   - % cover invasive
+# 1. Compile # of plots sampled per site x visit (should be 5 for most)
+# 2. Link C and Native status to species data by GEOD_ID/NWC_CREG code.
+    # Do each visit separately?
+    # Move plant taxa csvs from epa_all into a taxa specific folder for easier compiling
+# 3. Compile Bryophyte cover using the vegetation type data
 
-# move plant taxa csvs from epa_all into a taxa specific folder for easier compiling
-# Veg files change a lot year to year.
+# Veg plot data
+plot11 <- read.csv('./data/epa_nce/nwca2011_vegplotloc.csv')
+plot16 <- read.csv('./data/epa_nce/nwca2016_veg_plot_location_data.csv')
+plot21 <- read.csv('./data/epa_nce/nwca2021_vegplotloc_wide_data.csv')
 
-# 2011
+# Dates are different formats across years
+plot11$Date <- as.Date(plot11$DATE_COL, format = "%d-%b-%y")
+plot11$Year <- format(plot11$Date, "%Y")
+plot16$Date <- as.Date(plot16$DATE_COL, format = "%m/%d/%Y")
+plot16$Year <- format(plot16$Date, "%Y")
+plot21$Date <- as.Date(plot21$DATE_COL, format = "%d-%b-%y")
+plot21$Year <- format(plot21$Date, "%Y")
 
-# 2016
- # NWC_CREG16 is the column in plant data that links to GEOG_ID in plant_cvalue and plant_native
-veg16 <- read.csv()
+comm_p_names <- intersect(intersect(names(plot11), names(plot16)), names(plot21))
+
+plot_all <- rbind(plot11[,comm_p_names], plot16[,comm_p_names], plot21[,comm_p_names]) |>
+  arrange(SITE_ID, Year, VISIT_NO)
+
+plot_sum <- plot_all |> group_by(UID, SITE_ID, VISIT_NO, Date, Year) |>
+  summarize(num_plots = sum(!is.na(PLOT)),
+            miss_plots = sum(is.na(PLOT)),
+            .groups = "drop")
+
+table(plot_sum$Year) # 2011: 27; 2016: 94; 2021: 96; 2022: 12
+table(complete.cases(plot_all$PLOT)) #159 FALSE; 313 TRUE; Lots of PLOT blanks in 2021.
+# Not clear what the blanks in 2021 are about yet - were they not sampled?
+
+# Bryophyte cover
+bryo11 <- read.csv("./data/epa_nce/nwca2011_vegtype_grndsurf.csv") |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES)
+bryo16 <- read.csv('./data/epa_nce/nwca2016_vegetation_type_data.csv') |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES)
+bryo21 <- read.csv('./data/epa_nce/nwca2021_vegtype_wide_data.csv') |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES)
+
+bryo_all <- rbind(bryo11, bryo16, bryo21)
+
+# Taxa 2011
+cov11 <- read.csv("./data/epa_nce/nwca2011_plant_pres_cvr.csv") |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+head(cov11)
+
+cov16 <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv') |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+head(cov16)
+
+cov21 <- read.csv("./data/epa_nce/nwca2021_plant_wide_data.csv") #|>
+  # select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+  #        NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+  # Missing columns YEAR, NWC_CREG16 (for C and native), SPECIES_NAME_ID
+
+head(cov21)
