@@ -11,7 +11,7 @@ page_read <- read_html(page_orig)
 
 #--- Download data files ---
 # Detect hyperlinks ending in .csv
-csv_list <- page_read |> html_nodes("a") |> html_attr("href") |> str_subset("\\.csv|\\.CSV")
+csv_list <- page_read |> html_nodes("a") |> html_attr("href") |> str_subset(regex("\\.csv", ignore_case = T))
 nwca_data <- str_subset(csv_list, "nwca")
 nwca_data_names <- sub(".*\\/", "", nwca_data)
 
@@ -120,7 +120,7 @@ invisible(
 # in common to start with. There may be columns in later datasets that need adding, but I'll deal
 # with that later.
 
-# Site Info
+#---- Site Info ----
 site11 <- read.csv("./data/epa_nce/nwca2011_site_info.csv")
 site16 <- read.csv("./data/epa_nce/nwca2016_site_info.csv")
 site21 <- read.csv("./data/epa_nce/nwca2021_site_info.csv")
@@ -139,7 +139,9 @@ table(site_all$RPT_UNIT) #318 NCE
 table(site_all$VISIT_NO) #318 1
 table(site_all$Year) # 12 in 2022?
 
-# Plant data
+write.csv(site_all, "./data/comb_data/Site_Information_2011-2021.csv", row.names = F)
+
+#---- Plant data ----
 # 1. Compile # of plots sampled per site x visit (should be 5 for most)
 # 2. Link C and Native status to species data by GEOD_ID/NWC_CREG code.
     # Do each visit separately?
@@ -173,6 +175,8 @@ table(plot_sum$Year) # 2011: 27; 2016: 94; 2021: 96; 2022: 12
 table(complete.cases(plot_all$PLOT)) #159 FALSE; 313 TRUE; Lots of PLOT blanks in 2021.
 # Not clear what the blanks in 2021 are about yet - were they not sampled?
 
+write.csv(plot_all, "./data/comb_data/Vegetation_Plot_Location_2011-2021.csv", row.names = F)
+
 # Bryophyte cover
 bryo11 <- read.csv("./data/epa_nce/nwca2011_vegtype_grndsurf.csv") |>
   select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES)
@@ -183,20 +187,48 @@ bryo21 <- read.csv('./data/epa_nce/nwca2021_vegtype_wide_data.csv') |>
 
 bryo_all <- rbind(bryo11, bryo16, bryo21)
 
-# Taxa 2011
-cov11 <- read.csv("./data/epa_nce/nwca2011_plant_pres_cvr.csv") |>
+write.csv(bryo_all, "./data/comb_data/Bryophyte_Cover_2011-2021.csv", row.names = F)
+
+# Plant Cover Data
+# 2011 plant data
+cov11a <- read.csv("./data/epa_nce/nwca2011_plant_pres_cvr.csv") |>
   select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
          NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
-head(cov11)
+site11a <- read.csv("./data/epa_nce/nwca2011_site_info.csv") |>
+  select(UID, SITE_ID, UNIQUE_ID, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+cov11b <- left_join(cov11a, site11a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
+head(cov11b)
 
+# Bring in C, native, wetland indicator status
+taxa11 <- read.csv("./data/taxa_lists/nwca2011_planttaxa.csv", fileEncoding = "latin1")
+cnat11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_cc_natstat.csv', fileEncoding = "latin1")
+wis11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_wis.csv', fileEncoding = 'latin1')
+
+cov11t <- left_join(cov11b, taxa11 |> select(SPECIES_NAME_ID, USDA_NAME, ORDER, FAMILY, GENUS,
+                                             VARIETY, GROWTH_HABIT, DURATION),
+                    by = c("SPECIES_NAME_ID"))
+
+cov11cnat <- left_join(cov11t, cnat11 |> select(-PUBLICATION_DATE),
+                       by = c("SPECIES_NAME_ID", "USDA_NAME", "NWC_CREG11" = "GEOG_ID"))
+cov11wis <- left_join(cov11cnat, wis11 |> select(-PUBLICATION_DATE),
+                      by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID"))
+
+# cov11wis ready to join with remaining years.
+
+# 2016 plant data
 cov16 <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv') |>
   select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
          NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
-head(cov16)
 
-cov21 <- read.csv("./data/epa_nce/nwca2021_plant_wide_data.csv") #|>
-  # select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
-  #        NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
-  # Missing columns YEAR, NWC_CREG16 (for C and native), SPECIES_NAME_ID
+# 2021 data has NWC_CREG16 code in site data instead of veg data
+cov21a <- read.csv("./data/epa_nce/nwca2021_plant_wide_data.csv")
+cov21a$YEAR <- format(as.Date(cov21a$DATE_COL, format = "%d-%b-%y"), "%Y")
+site21a <- read.csv("./data/epa_nce/nwca2021_site_info.csv") |>
+  select(UID, UNIQUE_ID, SITE_ID, VISIT_NO, NWC_CREG16)
+cov21 <- left_join(cov21a, site21a, by = c("UID", "UNIQUE_ID", "SITE_ID", "VISIT_NO")) |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
 
-head(cov21)
+covcomb <- rbind(cov11, cov16, cov21)
+table(covcomb$YEAR)
+
