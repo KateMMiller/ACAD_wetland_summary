@@ -2,7 +2,7 @@
 library(rvest)
 library(stringr)
 library(tidyverse)
-
+# library(tidycensus)
 download_path <- "C:/NETN/R_Dev/ACAD_wetland_summary/data/epa_all/"
 
 #--- Read html on website ---
@@ -39,7 +39,7 @@ lapply(seq_along(nwca_meta_names), function(x){
 siteinfo_2011 <- read.csv("./data/epa_all/nwca11_siteinfo.csv")
 nce_sites_2011 <- siteinfo_2011$UID[siteinfo_2011$RPT_UNIT == "NCE" &
                                     siteinfo_2011$VISIT_NO == 1 &
-                                    siteinfo_2011$SITETYPE == "PROB"]
+                                    siteinfo_2011$SITETYPE == "PROB"] # dropped ACAD sites
 nce_sites_2011
 csv_list <- list.files(paste0("./data/epa_all/"))
 csv2011a <- csv_list[grepl("nwca11|nwca2011", csv_list)]
@@ -212,7 +212,8 @@ cov11cnat <- left_join(cov11t, cnat11 |> select(-PUBLICATION_DATE),
                        by = c("SPECIES_NAME_ID", "USDA_NAME", "NWC_CREG11" = "GEOG_ID"))
 cov11wis <- left_join(cov11cnat, wis11 |> select(-PUBLICATION_DATE),
                       by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID")) |>
-  rename(NWCA_NAME = USDA_NAME)
+  rename(NWCA_NAME = USDA_NAME) |>
+  mutate(SYMBOL = NA_character_)
 
 head(cov11wis) # future years use different name.
 
@@ -235,7 +236,7 @@ nat16 <- read.csv('./data/taxa_lists/nwca_2016_plant_native_status.csv')
 wis16 <- read.csv('./data/taxa_lists/nwca_2016_plant_wis.csv')
 
 cov16t <- left_join(cov16b, taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
-                                             GROWTH_HABIT, DURATION),
+                                             GROWTH_HABIT, DURATION, SYMBOL = ACCEPTED_SYMBOL),
                     by = c("SPECIES_NAME_ID"))
 cov16nat <- left_join(cov16t, nat16 |> select(-PUBLICATION_DATE),
                     by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG11" = "GEOG_ID"))
@@ -251,7 +252,7 @@ cov21a <- read.csv('./data/epa_nce/nwca2021_plant_wide_data.csv')
 cov21a$YEAR <- format(as.Date(cov21a$DATE_COL, format = "%d-%b-%y"), "%Y")
 
 site21a <- read.csv("./data/epa_nce/nwca2021_site_info.csv") |>
-  select(UID, SITE_ID, UNIQUE_ID, COE_REG_ID, PSTL_CODE, COE_REG_ID, #NWC_CREG11,
+  select(UID, SITE_ID, UNIQUE_ID, COE_REG_ID, PSTL_CODE, COE_REG_ID,
          NWC_CREG16)
 
 cov21b <- left_join(cov21a, site21a, by = c("UID", "SITE_ID", "UNIQUE_ID", "PSTL_CODE"))
@@ -263,7 +264,7 @@ nat21 <- read.csv('./data/taxa_lists/nwca21_plantnative-data.csv')
 wis21 <- read.csv('./data/taxa_lists/nwca21_plantwis-data.csv')
 
 cov21t <- left_join(cov21b, taxa21 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
-                                             GROWTH_HABIT, DURATION),
+                                             GROWTH_HABIT, DURATION, SYMBOL = ACCEPTED_SYMBOL),
                     by = c("SPECIES_NAME_ID"))
 cov21nat <- left_join(cov21t, nat21 |> select(-PUBLICATION_DATE),
                       by = c("SPECIES_NAME_ID", "NWCA_NAME", "PSTL_CODE" = "GEOG_ID"))
@@ -272,23 +273,88 @@ cov21c <- left_join(cov21nat, c21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
 cov21wis <- left_join(cov21c, wis21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
                       by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
 
-head(cov21wis) # 2016 data ready to join with other years (some columns )
+head(cov21wis) # 2021 data ready to join with other years (some columns )
 
-# column name updates
-cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+# column name updates before combining
+cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT,
+                            STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
+                            SPECIES_NAME_ID, SYMBOL,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
                             ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
                             CVAL = NWCA_CC, NATSTAT = NWCA_NATSTAT, WIS, ECOIND, ALIEN)
 
-cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT,
+                            SPECIES_NAME_ID, SYMBOL,
+                            STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
                             ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
                             CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
 
-cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT,
+                            STATE = PSTL_CODE, CREG = NWC_CREG16, WISREG = COE_REG_ID,
+                            SPECIES_NAME_ID, SYMBOL,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
                             ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
                             CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
 
 covcomb <- rbind(cov11, cov16, cov21)
 head(covcomb)
+
+table(cov11$STATE)
+table(cov11$CREG)
+table(cov11$WISREG)
+
+table(cov16$STATE)
+table(cov16$CREG)
+table(cov16$WISREG)
+
+table(cov21$STATE)
+table(cov21$CREG)
+table(cov21$WISREG)
+
+table(covcomb$STATE, covcomb$YEAR) # Confirmed in site info that 2011 only had target sites in IA and NJ
+table(covcomb$CREG, covcomb$YEAR)
+table(covcomb$WISREG, covcomb$YEAR)
+
+
+write.csv(covcomb, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+
+
+# Compiling VMMI from EPA data
+# % Bryophyte : Done
+# Mean C
+# % Cover Disturbance Tolerante
+# % Cover Invasive
+
+
+# % Cover Invasive - Using USDA PLANTS database to establish invasive status.
+#      https://plants.usda.gov/noxious-invasive-search
+# Doesn't appear that that state-level designations are all that helpful. Going to go with,
+# if it's invasive in any state in the reporting region, it's invasive in the analysis. I
+# can't think of an example where that isn't true.
+
+spplist <- covcomb |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
+  group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
+  fill(SYMBOL, .direction = "downup") |> unique()
+
+dup_spp <- data.frame(table(spplist$SYMBOL)) |> filter(Freq > 1) |>
+  mutate(duplicate = 1)
+
+spplist <- left_join(spplist, dup_spp, by = c("SYMBOL" = "Var1"))
+
+# Pruning by hand - species to drop from invasive list
+drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
+              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
+
+inv_spp <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
+  select(Accepted.Symbol) |> filter(!Accepted.Symbol %in% drop_spp) |> unique()
+
+head(inv_spp)
+# ENDED HERE ++++ Add a column to the covcomb on whether it's invasive based on the symbol.
+# but have to relate to the species name b/c 2011 doesn't have symbols attached.
+
+# data(fips_codes) # from tidycensus
+# inv_spp <- left_join(inv_spp1, fips_codes |> select(state, state_code) |> unique(),
+#                      by = c("FIPS" = "state_code"))
+# head(inv_spp)
+
