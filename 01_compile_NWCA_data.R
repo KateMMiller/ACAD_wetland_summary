@@ -205,30 +205,90 @@ cnat11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_cc_natstat.csv', fileEn
 wis11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_wis.csv', fileEncoding = 'latin1')
 
 cov11t <- left_join(cov11b, taxa11 |> select(SPECIES_NAME_ID, USDA_NAME, ORDER, FAMILY, GENUS,
-                                             VARIETY, GROWTH_HABIT, DURATION),
+                                             GROWTH_HABIT, DURATION),
                     by = c("SPECIES_NAME_ID"))
 
 cov11cnat <- left_join(cov11t, cnat11 |> select(-PUBLICATION_DATE),
                        by = c("SPECIES_NAME_ID", "USDA_NAME", "NWC_CREG11" = "GEOG_ID"))
 cov11wis <- left_join(cov11cnat, wis11 |> select(-PUBLICATION_DATE),
-                      by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID"))
+                      by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID")) |>
+  rename(NWCA_NAME = USDA_NAME)
+
+head(cov11wis) # future years use different name.
 
 # cov11wis ready to join with remaining years.
 
 # 2016 plant data
-cov16 <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv') |>
+cov16a <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv') |>
   select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
          NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
 
-# 2021 data has NWC_CREG16 code in site data instead of veg data
-cov21a <- read.csv("./data/epa_nce/nwca2021_plant_wide_data.csv")
+site16a <- read.csv("./data/epa_nce/nwca2016_site_info.csv") |>
+  select(UID, SITE_ID, UNIQUE_ID, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+cov16b <- left_join(cov16a, site16a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
+head(cov16b)
+
+# Bring in C, native, wetland indicator status
+taxa16 <- read.csv("./data/taxa_lists/nwca_2016_plant_taxa.csv")
+c16 <- read.csv("./data/taxa_lists/nwca_2016_plant_cvalues.csv")
+nat16 <- read.csv('./data/taxa_lists/nwca_2016_plant_native_status.csv')
+wis16 <- read.csv('./data/taxa_lists/nwca_2016_plant_wis.csv')
+
+cov16t <- left_join(cov16b, taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION),
+                    by = c("SPECIES_NAME_ID"))
+cov16nat <- left_join(cov16t, nat16 |> select(-PUBLICATION_DATE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG11" = "GEOG_ID"))
+cov16c <- left_join(cov16nat, c16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
+cov16wis <- left_join(cov16c, wis16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+
+head(cov16wis) # 2016 data ready to join with other years (some columns )
+
+# 2021 plant data
+cov21a <- read.csv('./data/epa_nce/nwca2021_plant_wide_data.csv')
 cov21a$YEAR <- format(as.Date(cov21a$DATE_COL, format = "%d-%b-%y"), "%Y")
+
 site21a <- read.csv("./data/epa_nce/nwca2021_site_info.csv") |>
-  select(UID, UNIQUE_ID, SITE_ID, VISIT_NO, NWC_CREG16)
-cov21 <- left_join(cov21a, site21a, by = c("UID", "UNIQUE_ID", "SITE_ID", "VISIT_NO")) |>
-  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
-         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+  select(UID, SITE_ID, UNIQUE_ID, COE_REG_ID, PSTL_CODE, COE_REG_ID, #NWC_CREG11,
+         NWC_CREG16)
+
+cov21b <- left_join(cov21a, site21a, by = c("UID", "SITE_ID", "UNIQUE_ID", "PSTL_CODE"))
+
+# Bring in C, native, wetland indicator status
+taxa21 <- read.csv("./data/taxa_lists/nwca21_planttaxa-data.csv")
+c21 <- read.csv("./data/taxa_lists/nwca21_plantcval-data.csv")
+nat21 <- read.csv('./data/taxa_lists/nwca21_plantnative-data.csv')
+wis21 <- read.csv('./data/taxa_lists/nwca21_plantwis-data.csv')
+
+cov21t <- left_join(cov21b, taxa21 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION),
+                    by = c("SPECIES_NAME_ID"))
+cov21nat <- left_join(cov21t, nat21 |> select(-PUBLICATION_DATE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "PSTL_CODE" = "GEOG_ID"))
+cov21c <- left_join(cov21nat, c21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
+cov21wis <- left_join(cov21c, wis21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+
+head(cov21wis) # 2016 data ready to join with other years (some columns )
+
+# column name updates
+cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CC, NATSTAT = NWCA_NATSTAT, WIS, ECOIND, ALIEN)
+
+cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
+
+cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT, SPECIES_NAME_ID,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
 
 covcomb <- rbind(cov11, cov16, cov21)
-table(covcomb$YEAR)
-
+head(covcomb)
