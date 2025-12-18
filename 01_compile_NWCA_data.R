@@ -298,6 +298,8 @@ cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, PLOT,
                             CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
 
 covcomb <- rbind(cov11, cov16, cov21)
+covcomb$NWCA_NAME <- gsub("×", "x", covcomb$NWCA_NAME)
+
 head(covcomb)
 
 table(cov11$STATE)
@@ -317,13 +319,55 @@ table(covcomb$CREG, covcomb$YEAR)
 table(covcomb$WISREG, covcomb$YEAR)
 
 
-write.csv(covcomb, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+# Compile and add Invasive column to plant cover data.
 
+# all species recorded in plant cover data.
+spplist <- covcomb |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
+  group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
+  fill(SYMBOL, .direction = "downup") |> unique()
 
-# Compiling VMMI from EPA data
+spp_numbers <- unique(spplist$SPECIES_NAME_ID)
+
+taxa_comb <- rbind(taxa11 |> select(SPECIES_NAME_ID, NWCA_NAME = USDA_NAME) |> mutate(year = 2011, SYMBOL = NA_character_),
+                   taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL = ACCEPTED_SYMBOL) |> mutate(year = 2016),
+                   taxa21 |> select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL = ACCEPTED_SYMBOL) |> mutate(year = 2021))
+
+taxa_comb$NWCA_NAME <- gsub("×", "x", taxa_comb$NWCA_NAME)
+
+taxa_wide <- taxa_comb |> pivot_wider(names_from = year, values_from = SYMBOL, names_prefix = "yr") |>
+  mutate(SYMBOL = ifelse(!is.na(yr2021), yr2021, yr2016)) |>
+  filter(SPECIES_NAME_ID %in% spp_numbers) |>
+  select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL)
+
+table(complete.cases(taxa_wide$SYMBOL)) # none missing a symbol
+taxa_wide |> group_by(SPECIES_NAME_ID) |> summarize(num = n()) |> filter(num>1) # no duplicate IDs
+
+# read in invasive species list downloaded from USDA Plants
+inv_spp1 <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
+  select(SYMBOL = Accepted.Symbol)
+
+# Pruning by hand - species to drop from invasive list
+drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
+              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
+
+inv_spp <- inv_spp1 |> filter(!SYMBOL %in% drop_spp) |> unique()
+
+taxa_wide$INVASIVE <- ifelse(taxa_wide$SYMBOL %in% inv_spp$SYMBOL, 1, 0)
+write.csv(taxa_wide, "./data/comb_data/Plant_Species_List_2011-2021.csv")
+
+# Add invasive column to plant cover data
+covcomb_final <- left_join(covcomb |> select(-SYMBOL),
+                           taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
+                           by = c("SPECIES_NAME_ID")) |>
+  filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
+head(covcomb_final)
+
+write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+
+#---- Compiling VMMI from EPA data ----
 # % Bryophyte : Done
 # Mean C
-# % Cover Disturbance Tolerante
+# % Cover Disturbance Tolerant
 # % Cover Invasive
 
 
@@ -332,29 +376,7 @@ write.csv(covcomb, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
 # Doesn't appear that that state-level designations are all that helpful. Going to go with,
 # if it's invasive in any state in the reporting region, it's invasive in the analysis. I
 # can't think of an example where that isn't true.
-
-spplist <- covcomb |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
-  group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
-  fill(SYMBOL, .direction = "downup") |> unique()
-
-dup_spp <- data.frame(table(spplist$SYMBOL)) |> filter(Freq > 1) |>
-  mutate(duplicate = 1)
-
-spplist <- left_join(spplist, dup_spp, by = c("SYMBOL" = "Var1"))
-
-# Pruning by hand - species to drop from invasive list
-drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
-              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
-
-inv_spp <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
-  select(Accepted.Symbol) |> filter(!Accepted.Symbol %in% drop_spp) |> unique()
-
-head(inv_spp)
-# ENDED HERE ++++ Add a column to the covcomb on whether it's invasive based on the symbol.
-# but have to relate to the species name b/c 2011 doesn't have symbols attached.
-
-# data(fips_codes) # from tidycensus
-# inv_spp <- left_join(inv_spp1, fips_codes |> select(state, state_code) |> unique(),
-#                      by = c("FIPS" = "state_code"))
-# head(inv_spp)
-
+#
+# Invasive list needs the USDA symbol to be joined to the species in the cover data. However,
+# the 2011 taxa tables don't include the symbol. I'm using the taxa 2016 and 2021 tables to
+# fill in as much of those holes, then will manually add the missing species.
