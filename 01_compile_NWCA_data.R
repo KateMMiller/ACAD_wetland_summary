@@ -1,4 +1,8 @@
-# Download EPA data
+#-------------------------------------------------------------------------
+# Download and compile EPA NWCA data for sites in the NCE reporting unit
+#-------------------------------------------------------------------------
+
+#--- Params ----
 library(rvest)
 library(stringr)
 library(tidyverse)
@@ -389,7 +393,7 @@ plot_list1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD8
 
 plot_list2 <- left_join(plot_list1, plot_sum |> select(-Date),
                        by = c("UID", "SITE_ID", "VISIT_NO", c("YEAR" = "Year")))
-head(plot_list)
+head(plot_list2)
 
 # Fix plots_missing plot count from plot_sum
 #miss_plot_num <- plot_list2 |> filter(is.na(num_plots)) |> select(UID, UNIQUE_ID, SITE_ID, YEAR)
