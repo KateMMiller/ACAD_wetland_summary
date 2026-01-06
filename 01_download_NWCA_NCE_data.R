@@ -1,5 +1,14 @@
 #-------------------------------------------------------------------------
 # Download and compile EPA NWCA data for sites in the NCE reporting unit
+# Later change to Northeast Level 3 Ecoregion codes 58, 59, 82, 83, 84
+# because the Coefficient of Conservation values were assigned during the
+# same workshop/same botanists, and most closely resemble the values used
+# to develop the vegetation MMI and thresholds. The CoC values in the EPA
+# taxa tables change a lot among years, affecting the MMI calculations for
+# mathematical and not ecological reasons. All MMI calculations will use
+# The NEIWPCC CoCs assigned here:
+#   https://neiwpcc.org/wp-content/uploads/2018/03/Northeast-FQA_NEWIPCC_-FINAL-REPORT_March-2018.pdf
+#   http://neiwpcc.org/wp-content/uploads/2018/03/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx
 #-------------------------------------------------------------------------
 
 #--- Params ----
@@ -7,6 +16,7 @@ library(rvest)
 library(stringr)
 library(tidyverse)
 # library(tidycensus)
+
 download_path <- "C:/NETN/R_Dev/ACAD_wetland_summary/data/epa_all/"
 
 #--- Read html on website ---
@@ -207,7 +217,7 @@ cov11a <- read.csv("./data/epa_nce/nwca2011_plant_pres_cvr.csv") |>
   select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
          NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
 site11a <- read.csv("./data/epa_nce/nwca2011_site_info.csv") |>
-  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16, US_L3CODE)
 cov11b <- left_join(cov11a, site11a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
 head(cov11b)
 
@@ -237,7 +247,7 @@ cov16a <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv'
          NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
 
 site16a <- read.csv("./data/epa_nce/nwca2016_site_info.csv") |>
-  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16, US_L3CODE)
 cov16b <- left_join(cov16a, site16a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
 head(cov16b)
 
@@ -265,7 +275,7 @@ cov21a$YEAR <- format(as.Date(cov21a$DATE_COL, format = "%d-%b-%y"), "%Y")
 
 site21a <- read.csv("./data/epa_nce/nwca2021_site_info.csv") |>
   select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, PSTL_CODE, COE_REG_ID,
-         NWC_CREG16)
+         NWC_CREG16, US_L3CODE)
 
 cov21b <- left_join(cov21a, site21a, by = c("UID", "SITE_ID", "UNIQUE_ID", "PSTL_CODE"))
 
@@ -289,6 +299,7 @@ head(cov21wis) # 2021 data ready to join with other years (some columns )
 
 # column name updates before combining
 cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            US_L3CODE,
                             STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
                             SPECIES_NAME_ID, SYMBOL,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
@@ -296,6 +307,7 @@ cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, V
                             CVAL = NWCA_CC, NATSTAT = NWCA_NATSTAT, WIS, ECOIND, ALIEN)
 
 cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            US_L3CODE,
                             SPECIES_NAME_ID, SYMBOL,
                             STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
@@ -303,6 +315,7 @@ cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, V
                             CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
 
 cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            US_L3CODE,
                             STATE = PSTL_CODE, CREG = NWC_CREG16, WISREG = COE_REG_ID,
                             SPECIES_NAME_ID, SYMBOL,
                             NWCA_NAME, COVER, HEIGHT, NE, SW,
@@ -350,7 +363,7 @@ taxa_wide <- taxa_comb |> pivot_wider(names_from = year, values_from = SYMBOL, n
   select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL)
 
 table(complete.cases(taxa_wide$SYMBOL)) # none missing a symbol
-taxa_wide |> group_by(SPECIES_NAME_ID) |> summarize(num = n()) |> filter(num>1) # no duplicate IDs
+taxa_wide |> group_by(SPECIES_NAME_ID) |> summarize(num = n()) |> filter(num > 1) # no duplicate IDs
 
 # read in invasive species list downloaded from USDA Plants
 # % Cover Invasive - Using USDA PLANTS database to establish invasive status.
@@ -380,9 +393,21 @@ covcomb_final <- left_join(covcomb |> select(-SYMBOL),
                            taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
                            by = c("SPECIES_NAME_ID")) |>
   filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
+
 head(covcomb_final)
 
+# EPA's CoC values change a lot among years, affecting the vegetation MMI calculations
+# for mathematical and not ecological reasons, and also don't match the latest CoCs
+# used in New England developed by NEIWPCC. This code imports the NEIWPCC CoCs and
+# assigns them to the plot using their US_L3CODE
+
+#--- NEIWPCC CoC values ---
+# download.file("http://neiwpcc.org/wp-content/uploads/2018/03/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx",
+#               destfile = "./data/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx")
+
+
 write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+
 
 #---- Compiling VMMI from EPA data ----
 

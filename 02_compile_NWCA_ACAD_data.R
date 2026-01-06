@@ -2,7 +2,7 @@
 # Compile ACAD Sentinel data collected as part of EPA NWCA
 #------------------------------------------------------------
 
-# EPA NWCA data were downloaded in 01_compile_NWCA_data.R. This script extracts and compiles the ACAD
+# EPA NWCA data were downloaded in 01_download_NWCA_NCE_data.R. This script extracts and compiles the ACAD
 # sentinal site data from EPA's datasets.
 
 #dir.create(paste0("./data/epa_acad/"))
@@ -375,7 +375,7 @@ covcomb_final1 <- left_join(covcomb |> select(-SYMBOL),
                            by = c("SPECIES_NAME_ID")) |>
   filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
 
-head(covcomb_final)
+head(covcomb_final1)
 cov_na <- covcomb_final1 |> filter(is.na(NWCA_NAME)) |>
   select(local_code, YEAR, NWCA_NAME, SYMBOL) # empty df
 
@@ -419,18 +419,23 @@ cval_check2 <- left_join(cval_check, mecoc |> select(SYMBOL = `PLANTS_Accepted S
                                                      CVAL_mecoc = ecoreg_82_COC),
                          by = c("SYMBOL"))
 
-# species missing b/c ssp or var:
-# ARETHUSA BULBOSA = 9
-# ALNUS INCANA = 3
-# AMELANCHIER = 5
-# BETULA PAPYRIFERA = 3
-# CAREX ECHINATA SSP. ECHINATA = 3
-# CAREX MAGELLANICA SSP. IRRIGUA = 7
-# OCLEMENA xBLAKEI = 5
-# RUBUS IDAEUS = 2
-# SPARGANIUM EMERSUM = 6 # CHECK WHERE THIS SHOWS UP
-# VIBURNUM NUDUM = 5
-# VIOLA = 4
+# Add in the species CoCs where var or ssp prevented join
+coc_update <- function(df, species, coc){
+  df$CVAL_mecoc[df$NWCA_NAME == species] <- coc
+  df
+}
+
+cval_check2 <- coc_update(cval_check2, "ALNUS INCANA", 3)
+cval_check2 <- coc_update(cval_check2, "ARETHUSA BULBOSA", 9)
+cval_check2 <- coc_update(cval_check2, "AMELANCHIER", 5)
+cval_check2 <- coc_update(cval_check2, "BETULA PAPYRIFERA", 3)
+cval_check2 <- coc_update(cval_check2, "CAREX ECHINATA SSP. ECHINATA", 3) #MNAP differs from EPA
+cval_check2 <- coc_update(cval_check2, "CAREX MAGELLANICA SSP. IRRIGUA", 7)
+cval_check2 <- coc_update(cval_check2, "OCLEMENA xBLAKEI", 5)
+cval_check2 <- coc_update(cval_check2, "RUBUS IDAEUS", 2)
+cval_check2 <- coc_update(cval_check2, "SPARGANIUM EMERSUM", 6)
+cval_check2 <- coc_update(cval_check2, "VIBURNUM NUDUM", 5)
+cval_check2 <- coc_update(cval_check2, "VIOLA", 4)
 
 #+++++ ENDED HERE +++++
 #+ THESE NUMBERS DON'T MATCH ME's numbers. This is especially important for ACAD sentinel sites
@@ -587,3 +592,4 @@ covsum <- left_join(covcomb_final, plot_list |> select(UID, local_code, YEAR, nu
 
 write.csv(covsum, paste0(export_path, "./comb_data/Plant_Cover_Sum_2011-2021.csv"), row.names = F)
 head(covsum)
+
