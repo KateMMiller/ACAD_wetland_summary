@@ -9,6 +9,7 @@
 #dir.create(paste0('./data/epa_acad/comb_data/'))
 
 library(tidyverse)
+library(readxl)
 export_path <- "C:/NETN/R_Dev/ACAD_wetland_summary/data/epa_acad/"
 
 #--- Compile ACAD sentinal plots (R301-R310) ---
@@ -166,7 +167,7 @@ plot_sum <- plot_all |> group_by(UID, local_code, SITE_ID, VISIT_NO, Date, Year)
 
 table(plot_sum$Year) # 2011: 5; 2016: 10; 2021: 10 # Missing data in 2011
 table(complete.cases(plot_all$PLOT)) #7 FALSE; 78 TRUE;
-write.csv(plot_all, "./data/comb_data/Vegetation_Plot_Location_2011-2021.csv", row.names = F)
+write.csv(plot_all, paste0(export_path, "comb_data/Vegetation_Plot_Location_2011-2021.csv"), row.names = F)
 
 # Bryophyte cover
 bryo11 <- read.csv(paste0(export_path, "nwca2011_vegtype_grndsurf.csv")) |>
@@ -324,9 +325,40 @@ covcomb <- rbind(cov11, cov16, cov21)
 covcomb$NWCA_NAME <- gsub("×", "x", covcomb$NWCA_NAME)
 head(covcomb)
 
+# Add invasive column to plant cover data
+covcomb_final1 <- left_join(covcomb |> select(-SYMBOL),
+                           taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
+                           by = c("SPECIES_NAME_ID")) |>
+  filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
+
+head(covcomb_final1)
+cov_na <- covcomb_final1 |> filter(is.na(NWCA_NAME)) |>
+  select(local_code, YEAR, NWCA_NAME, SYMBOL) # empty df
+
+# Making species names consistent (lots of ssp and vars in 2021 data)
+spp_update <- function(df, nwca_name_orig, nwca_name_new, sppID, symbol){
+  df$SPECIES_NAME_ID[df$NWCA_NAME == nwca_name_orig] <- sppID
+  df$SYMBOL[df$NWCA_NAME == nwca_name_orig] <- symbol
+  df$NWCA_NAME[df$NWCA_NAME == nwca_name_orig] <- nwca_name_new
+  df
+}
+
+covcomb_final1 <- spp_update(covcomb_final1, "ALNUS INCANA SSP. RUGOSA", "ALNUS INCANA", 2989, "ALIN2")
+covcomb_final1 <- spp_update(covcomb_final1, "ANDROMEDA POLIFOLIA VAR. GLAUCOPHYLLA", "ANDROMEDA POLIFOLIA", 4092, "ANPO")
+covcomb_final1 <- spp_update(covcomb_final1, "CALOPOGON TUBEROSUS VAR. TUBEROSUS", "CALOPOGON TUBEROSUS", 14557, "CATU5")
+covcomb_final1 <- spp_update(covcomb_final1, "CAREX LASIOCARPA VAR. AMERICANA", "CAREX LASIOCARPA", 16265, "CALA11")
+covcomb_final1 <- spp_update(covcomb_final1, "ERIOPHORUM ANGUSTIFOLIUM SSP. ANGUSTIFOLIUM", "ERIOPHORUM ANGUSTIFOLIUM", 33528, "ERAN6")
+covcomb_final1 <- spp_update(covcomb_final1, "LINNAEA BOREALIS SSP. LONGIFLORA", "LINNAEA BOREALIS", 49412, "LIBO3")
+covcomb_final1 <- spp_update(covcomb_final1, "SARRACENIA PURPUREA SSP. PURPUREA VAR. PURPUREA", "SARRACENIA PURPUREA", 76786, "SAPU4")
+covcomb_final1 <- spp_update(covcomb_final1, "SOLIDAGO ULIGINOSA VAR. LINOIDES", "SOLIDAGO ULIGINOSA", 80892, "SOUL")
+covcomb_final1 <- spp_update(covcomb_final1, "THELYPTERIS PALUSTRIS VAR. PUBESCENS", "THELYPTERIS PALUSTRIS", 84920, "THPA")
+covcomb_final1 <- spp_update(covcomb_final1, "VIBURNUM NUDUM VAR. CASSINOIDES", "VIBURNUM NUDUM", 88708, "VINU")
+covcomb_final1 <- spp_update(covcomb_final1, "MORELLA CAROLINIENSIS", "MORELLA PENSYLVANICA", 55927, "MOPE6")
+covcomb_final1$GROWTH_HABIT[covcomb_final1$NWCA_NAME == "SARRACENIA PURPUREA"] <- "FORB/HERB"
+
 # Compile and add Invasive column to plant cover data.
 # all species recorded in plant cover data.
-spplist <- covcomb |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
+spplist <- covcomb_final1 |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
   group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
   fill(SYMBOL, .direction = "downup") |> unique()
 
@@ -369,120 +401,65 @@ inv_spp <- inv_spp1 |> filter(!SYMBOL %in% drop_spp) |> unique()
 taxa_wide$INVASIVE <- ifelse(taxa_wide$SYMBOL %in% inv_spp$SYMBOL, 1, 0)
 write.csv(taxa_wide, paste0(export_path, "comb_data/Plant_Species_List_2011-2021.csv"), row.names = F)
 
-# Add invasive column to plant cover data
-covcomb_final1 <- left_join(covcomb |> select(-SYMBOL),
-                           taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
-                           by = c("SPECIES_NAME_ID")) |>
-  filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
 
-head(covcomb_final1)
-cov_na <- covcomb_final1 |> filter(is.na(NWCA_NAME)) |>
-  select(local_code, YEAR, NWCA_NAME, SYMBOL) # empty df
+#--- NEIWPCC CoC values ---
+regc <- read_xlsx("./data/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx", sheet = 2) |>
+  select(Symbol = `Accepted Symbol`, Accepted_Name = `Accepted Name`, cval82 = `82`)
 
-# Making species names consistent (lots of ssp and vars in 2021 data)
-spp_update <- function(df, nwca_name_orig, nwca_name_new, sppID, symbol){
-  df$SPECIES_NAME_ID[df$NWCA_NAME == nwca_name_orig] <- sppID
-  df$SYMBOL[df$NWCA_NAME == nwca_name_orig] <- symbol
-  df$NWCA_NAME[df$NWCA_NAME == nwca_name_orig] <- nwca_name_new
-  df
-}
-
-covcomb_final1 <- spp_update(covcomb_final1, "ALNUS INCANA SSP. RUGOSA", "ALNUS INCANA", 2989, "ALIN2")
-covcomb_final1 <- spp_update(covcomb_final1, "ANDROMEDA POLIFOLIA VAR. GLAUCOPHYLLA", "ANDROMEDA POLIFOLIA", 4092, "ANPO")
-covcomb_final1 <- spp_update(covcomb_final1, "CALOPOGON TUBEROSUS VAR. TUBEROSUS", "CALOPOGON TUBEROSUS", 14557, "CATU5")
-covcomb_final1 <- spp_update(covcomb_final1, "CAREX LASIOCARPA VAR. AMERICANA", "CAREX LASIOCARPA", 16265, "CALA11")
-covcomb_final1 <- spp_update(covcomb_final1, "ERIOPHORUM ANGUSTIFOLIUM SSP. ANGUSTIFOLIUM", "ERIOPHORUM ANGUSTIFOLIUM", 33528, "ERAN6")
-covcomb_final1 <- spp_update(covcomb_final1, "LINNAEA BOREALIS SSP. LONGIFLORA", "LINNAEA BOREALIS", 49412, "LIBO3")
-covcomb_final1 <- spp_update(covcomb_final1, "SARRACENIA PURPUREA SSP. PURPUREA VAR. PURPUREA", "SARRACENIA PURPUREA", 76786, "SAPU4")
-covcomb_final1 <- spp_update(covcomb_final1, "SOLIDAGO ULIGINOSA VAR. LINOIDES", "SOLIDAGO ULIGINOSA", 80892, "SOUL")
-covcomb_final1 <- spp_update(covcomb_final1, "THELYPTERIS PALUSTRIS VAR. PUBESCENS", "THELYPTERIS PALUSTRIS", 84920, "THPA")
-covcomb_final1 <- spp_update(covcomb_final1, "VIBURNUM NUDUM VAR. CASSINOIDES", "VIBURNUM NUDUM", 88708, "VINU")
-covcomb_final1 <- spp_update(covcomb_final1, "MORELLA CAROLINIENSIS", "MORELLA PENSYLVANICA", 55927, "MOPE6")
-covcomb_final1$GROWTH_HABIT[covcomb_final1$NWCA_NAME == "SARRACENIA PURPUREA"] <- "FORB/HERB"
-
-
-# Fixes for species with different COCs between 2011, 2016 and 2021; using 2021
-# First find species with different CVals b/t 2011 and later
-cval_check <- covcomb_final1 |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, YEAR, CVAL) |> unique() |>
-  arrange(NWCA_NAME, YEAR) |>
-  pivot_wider(names_from = YEAR, values_from = CVAL, names_prefix = "yr_") |>
-  mutate(CVAL_final = case_when(!is.na(yr_2021) ~ yr_2021,
-                                !is.na(yr_2016) ~ yr_2016,
-                                !is.na(yr_2011) ~ yr_2011))
-
-# download.file("https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fwww.maine.gov%2Fdacf%2Fmnap%2Ffeatures%2FMaine_CoC.xlsx&wdOrigin=BROWSELINK",
-#               destfile = "./data/Maine_CoC.xlsx")
-# Updating numbers based on https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fwww.maine.gov%2Fdacf%2Fmnap%2Ffeatures%2FMaine_CoC.xlsx&wdOrigin=BROWSELINK
-mecoc <- readxl::read_xlsx("./data/Maine_CoC.xlsx")
-cval_check2 <- left_join(cval_check, mecoc |> select(SYMBOL = `PLANTS_Accepted Symbol`,
-                                                     Scientific_Name = `Scientific Name`,
-                                                     CVAL_mecoc = ecoreg_82_COC),
-                         by = c("SYMBOL"))
+taxa_wide2 <- left_join(taxa_wide, regc, by = c("SYMBOL" = "Symbol"))
+head(taxa_wide2)
 
 # Add in the species CoCs where var or ssp prevented join
 coc_update <- function(df, species, coc){
-  df$CVAL_mecoc[df$NWCA_NAME == species] <- coc
+  df$cval82[df$NWCA_NAME == species] <- coc
   df
 }
 
-cval_check2 <- coc_update(cval_check2, "ALNUS INCANA", 3)
-cval_check2 <- coc_update(cval_check2, "ARETHUSA BULBOSA", 9)
-cval_check2 <- coc_update(cval_check2, "AMELANCHIER", 5)
-cval_check2 <- coc_update(cval_check2, "BETULA PAPYRIFERA", 3)
-cval_check2 <- coc_update(cval_check2, "CAREX ECHINATA SSP. ECHINATA", 3) #MNAP differs from EPA
-cval_check2 <- coc_update(cval_check2, "CAREX MAGELLANICA SSP. IRRIGUA", 7)
-cval_check2 <- coc_update(cval_check2, "OCLEMENA xBLAKEI", 5)
-cval_check2 <- coc_update(cval_check2, "RUBUS IDAEUS", 2)
-cval_check2 <- coc_update(cval_check2, "SPARGANIUM EMERSUM", 6)
-cval_check2 <- coc_update(cval_check2, "VIBURNUM NUDUM", 5)
-cval_check2 <- coc_update(cval_check2, "VIOLA", 4)
+taxa_wide2 <- coc_update(taxa_wide2, "ALNUS INCANA", 3)
+taxa_wide2 <- coc_update(taxa_wide2, "AMELANCHIER", 5)
+taxa_wide2 <- coc_update(taxa_wide2, "ARETHUSA BULBOSA", 9)
+taxa_wide2 <- coc_update(taxa_wide2, "BETULA PAPYRIFERA", 3)
+taxa_wide2 <- coc_update(taxa_wide2, "CAREX ECHINATA SSP. ECHINATA", 3) #MNAP differs from EPA
+taxa_wide2 <- coc_update(taxa_wide2, "CAREX MAGELLANICA SSP. IRRIGUA", 7)
+taxa_wide2 <- coc_update(taxa_wide2, "OCLEMENA xBLAKEI", 5)
+taxa_wide2 <- coc_update(taxa_wide2, "RUBUS IDAEUS", 2)
+taxa_wide2 <- coc_update(taxa_wide2, "SPARGANIUM EMERSUM", 6)
+taxa_wide2 <- coc_update(taxa_wide2, "SOLIDAGO ULIGINOSA", 8)
+taxa_wide2 <- coc_update(taxa_wide2, "VIBURNUM NUDUM", 5)
+taxa_wide2 <- coc_update(taxa_wide2, "VIOLA", 4)
 
-#+++++ ENDED HERE +++++
-#+ THESE NUMBERS DON'T MATCH ME's numbers. This is especially important for ACAD sentinel sites
-covcomb_final <- left_join(covcomb_final1, cval_check |> select(SPECIES_NAME_ID, NWCA_NAME, CVAL_final),
+covcomb_final <- left_join(covcomb_final1, taxa_wide2 |> select(SPECIES_NAME_ID, NWCA_NAME, CVAL_final = cval82),
                            by = c("SPECIES_NAME_ID", "NWCA_NAME"))
-
-# Carex lasiocarpa should be a 6
-
-covcomb_final$CVAL_final[covcomb_final$NWCA_NAME == "CAREX LASIOCARPA"] <- 6
 
 write.csv(covcomb_final, paste0(export_path, "comb_data/Plant_Cover_2011-2021.csv"), row.names = F)
 
 #---- Compiling VMMI from EPA data ----
-
 # Compile plot list to left_join results with
 plot_list1 <- covcomb_final |> select(UID, local_code, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83,
                                       YEAR, VISIT_NO, STATE, CREG, WISREG) |>
   unique() |> arrange(UNIQUE_ID)
-
-plot_list2 <- left_join(plot_list1, plot_sum |> select(-Date),
-                        by = c("UID", "local_code", "SITE_ID", "VISIT_NO", c("YEAR" = "Year")))
-head(plot_list2)
-
-# Fix plots_missing plot count from plot_sum
-#miss_plot_num <- plot_list2 |> filter(is.na(num_plots)) |> select(UID, UNIQUE_ID, SITE_ID, YEAR)
-
-# count plots from cover data
-num_plots1 <- covcomb_final |> select(UID, local_code, UNIQUE_ID, SITE_ID, YEAR, PLOT) |> unique() |>
-  group_by(UID, local_code, UNIQUE_ID, SITE_ID, YEAR) |>
-  summarize(num_plots_cov = sum(!is.na(PLOT)), .groups = 'drop')
-
-table(num_plots1$local_code, num_plots1$YEAR, num_plots1$num_plots_cov)
-
-#fill_plots <- left_join(miss_plot_num, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
-
-plot_list3 <- left_join(plot_list2, num_plots1, by = c("UID","local_code", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
-  mutate(num_plots = ifelse(is.na(num_plots), num_plots_cov, num_plots),
-         plot_diff = ifelse(abs(num_plots - num_plots_cov) %in% c(2, 3, 4), "XX", NA_character_))
 
 # It appears that the plot tables don't always include data on number of plots, so I can't
 # use that to sum up the number of plots per site. The cover data is pretty consistent, with only
 # one site not having 5 veg plots. Going to just use that to sum up the number of veg plots for
 # site level averaging.
 
-plot_list <- plot_list3 |> select(UID:WISREG, num_vplots = num_plots_cov)
-head(plot_list) # df for left_join
-table(plot_list$num_vplots)
+# count plots from cover data
+num_plots1 <- covcomb_final |> select(UID, local_code, UNIQUE_ID, SITE_ID, YEAR, PLOT) |> unique() |>
+  group_by(UID, local_code, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(num_vplots = sum(!is.na(PLOT)), .groups = 'drop')
+
+table(num_plots1$local_code, num_plots1$YEAR, num_plots1$num_vplots)
+
+#fill_plots <- left_join(miss_plot_num, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
+
+plot_list <- left_join(plot_list1, num_plots1, by = c("UID","local_code", "UNIQUE_ID", "SITE_ID", "YEAR"))
+
+# It appears that the plot tables don't always include data on number of plots, so I can't
+# use that to sum up the number of plots per site. The cover data is pretty consistent, with only
+# one site not having 5 veg plots. Going to just use that to sum up the number of veg plots for
+# site level averaging.
+
 
 # % Bryophyte
 bryo_sum <- bryo_all |> group_by(UID, local_code, SITE_ID, VISIT_NO, YEAR) |>
@@ -500,17 +477,23 @@ table(covcomb_final$CVAL_final, useNA = 'always')
 # so species found in all 5 veg plots don't count more in the mean C than
 # rare species that only occur once
 cval <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL_final)) |>
-  filter(!is.na(CVAL_num)) |>
-  select(UID, local_code, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, CVAL_num) |> unique() |>
-  group_by(UID, local_code, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO) |>
-  summarize(meanC = mean(CVAL_num), .groups = 'drop')
-
+  #filter(!is.na(CVAL_num)) |>
+  filter(COVER > 0) |>
+  select(UID, local_code, UNIQUE_ID, SITE_ID, YEAR, CVAL_num, SPECIES_NAME_ID, NWCA_NAME) |>
+  unique() |>
+  group_by(UID, local_code, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(#totalC = sum(CVAL_num, na.rm = T),
+    # numSpp = sum(!is.na(CVAL_num)),
+    # meanC2 = totalC/numSpp,
+    meanC = mean(CVAL_num, na.rm = T),
+    # Cdiff = meanC2-meanC,
+    .groups = 'drop')
 #ignore NAs warning. Used to intentionally drop non-numeric values
 head(cval)
 head(plot_bryo)
 
 plot_br_cv <- left_join(plot_bryo, cval,
-                        by = c("UID", "local_code", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO"))
+                        by = c("UID", "local_code", "UNIQUE_ID", "SITE_ID", "YEAR"))
 
 # % Cover Disturbance Tolerant & Invasive
 dist_inv_sum1 <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL_final)) |>
@@ -545,10 +528,14 @@ plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, local_code, UNIQ
          bryo_adj1 = ifelse(bryo_cov > 98.48, 98.48, bryo_cov),
          bryo_adj2 = (bryo_adj1/98.48) * 10,
 
-         vmmi = (((meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2) - 0.389)/(40 - 0.389)) * 100,
-         vmmi_rating = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair")))
+         vmmi1 = meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2,
+         vmmi2 = ifelse(vmmi1 < 0.389, 0.389, vmmi1),
+         vmmi = ((vmmi2 - 0.389)/(40 - 0.389)) * 100,
+         vmmi_rating = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair"))
+  ) |> select(-vmmi1, -vmmi2)
 
 head(plot_vmmi)
+table(plot_vmmi$local_code, plot_vmmi$vmmi_rating)
 
 plot_vmmi$vmmi_rating_fac <- factor(plot_vmmi$vmmi_rating, levels = c("Good", "Fair", "Poor"))
 
@@ -584,11 +571,12 @@ write.csv(spplist, paste0(export_path, "comb_data/Species_list_by_year.csv"), ro
 
 covsum <- left_join(covcomb_final, plot_list |> select(UID, local_code, YEAR, num_vplots),
                     by = c("UID", "local_code", "YEAR")) |>
-  group_by(UNIQUE_ID, local_code, YEAR, NWCA_NAME, SYMBOL) |>
+  group_by(UNIQUE_ID, local_code, YEAR, NWCA_NAME, SYMBOL, CVAL_final) |>
   summarize(sum_cov = sum(COVER, na.rm = T),
             mean_cov = sum_cov/first(num_vplots),
             .groups = 'drop') |> select(-sum_cov) |>
-  pivot_wider(names_from = YEAR, values_from = mean_cov, values_fill = 0, names_prefix = "yr_")
+  pivot_wider(names_from = YEAR, values_from = mean_cov, values_fill = 0, names_prefix = "yr_") |>
+  arrange(local_code, NWCA_NAME)
 
 write.csv(covsum, paste0(export_path, "./comb_data/Plant_Cover_Sum_2011-2021.csv"), row.names = F)
 head(covsum)

@@ -140,7 +140,8 @@ cov11cnat <- left_join(cov11t, cnat11 |> select(-PUBLICATION_DATE),
 cov11wis <- left_join(cov11cnat, wis11 |> select(-PUBLICATION_DATE),
                       by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID")) |>
   rename(NWCA_NAME = USDA_NAME) |>
-  mutate(SYMBOL = NA_character_)
+  mutate(SYMBOL = NA_character_)|>
+  filter(UID %in% r1_uids)
 
 head(cov11wis) # future years use different name.
 
@@ -170,7 +171,8 @@ cov16nat <- left_join(cov16t, nat16 |> select(-PUBLICATION_DATE),
 cov16c <- left_join(cov16nat, c16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
                     by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
 cov16wis <- left_join(cov16c, wis16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
-                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))|>
+  filter(UID %in% r1_uids)
 
 head(cov16wis) # 2016 data ready to join with other years (some columns )
 
@@ -198,7 +200,8 @@ cov21nat <- left_join(cov21t, nat21 |> select(-PUBLICATION_DATE),
 cov21c <- left_join(cov21nat, c21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
                     by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
 cov21wis <- left_join(cov21c, wis21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
-                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))|>
+  filter(UID %in% r1_uids)
 
 head(cov21wis) # 2021 data ready to join with other years (some columns )
 
@@ -251,8 +254,8 @@ table(covcomb$CREG, covcomb$YEAR)
 table(covcomb$WISREG, covcomb$YEAR)
 table(covcomb$US_L3CODE, covcomb$YEAR)
 
-# There were 100 species names that didn't match b/t EPA and NEIWPCC b/c of use of var. or ssp. Taking
-# taxa to species, and did so in a separate spreadsheet.
+# There were 100 species names that didn't match b/t EPA and NEIWPCC b/c of use of var. or ssp. I revised
+# most taxa to species-level, and did so manually in the spreadsheet below.
 taxa_fix <- read.csv(paste0(export_path, "comb_data/EPA_NEIWPCC_taxa_matching_import.csv"), fileEncoding = "Latin1")
 head(taxa_fix)
 
@@ -265,8 +268,6 @@ covcomb_join <- left_join(covcomb, taxa_fix, by = c("SPECIES_NAME_ID" = "SPECIES
 
 table(complete.cases(covcomb_join$SYMBOL_fix), covcomb_join$YEAR) # Most blank Symbols are from 2011
 
-#++++ ENDED HERE +++++
-
 # Compile and add Invasive column to plant cover data.
 # all species recorded in plant cover data.
 spplist <- covcomb_join |> select(SPECIES_NAME_ID = SPECIES_NAME_ID_fix,
@@ -274,9 +275,10 @@ spplist <- covcomb_join |> select(SPECIES_NAME_ID = SPECIES_NAME_ID_fix,
                                   NWCA_NAME = NWCA_NAME_fix,
                                   NATSTAT, ALIEN) |> unique() |>
   group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
-  fill(SYMBOL, .direction = "downup") |> unique()
+  fill(SYMBOL, .direction = "downup") |> unique() |> arrange(NWCA_NAME)
 
 spp_numbers <- unique(spplist$SPECIES_NAME_ID)
+head(spplist)
 
 taxa_comb <- rbind(taxa11 |> select(SPECIES_NAME_ID, NWCA_NAME = USDA_NAME) |> mutate(year = 2011, SYMBOL = NA_character_),
                    taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL = ACCEPTED_SYMBOL) |> mutate(year = 2016),
@@ -319,123 +321,143 @@ taxa_wide$INVASIVE <- ifelse(taxa_wide$SYMBOL %in% inv_spp$SYMBOL, 1, 0)
 #               destfile = "./data/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx")
 
 regc <- read_xlsx("./data/Northeast-FQA_NEIWPCC_FINAL-Appendix-6_Ecoregional-C.xlsx", sheet = 2) |>
-  select(Symbol = `Accepted Symbol`, Accepted_Name = `Accepted Name`, eco58 = `58`,
-         eco59 = `59`, eco82 = `82`, eco83 = `83`, eco84 = `84`)
-# +++++ ENDED HERE ++++
-# NEED TO ADD covcomb_join fixes to species, then join with regc
+  select(Symbol = `Accepted Symbol`, Accepted_Name = `Accepted Name`, cval58 = `58`,
+         cval59 = `59`, cval82 = `82`, cval83 = `83`, cval84 = `84`)
 
-# Clean up ssp or vars are preventing joins with taxa.
-regc$Symbol[regc$Accepted_Name == "Carex debilis var. rudgei"] <- "CADE5"
+# Revise taxa_wide taxa to species, like I did with the covcomb data
+taxa_join <- left_join(taxa_wide, taxa_fix, by = c("SPECIES_NAME_ID" = "SPECIES_NAME_ID_orig",
+                                                    "NWCA_NAME" = "NWCA_NAME_orig")) |>
+  mutate(SPECIES_NAME_ID_fix = ifelse(!is.na(SPECIES_NAME_ID_new), SPECIES_NAME_ID_new, SPECIES_NAME_ID),
+         NWCA_NAME_fix = ifelse(!is.na(NWCA_NAME_new), NWCA_NAME_new, NWCA_NAME),
+         SYMBOL_fix = ifelse(!is.na(SYMBOL_new), SYMBOL_new, SYMBOL)
+  )
 
-taxa_wide2 <- left_join(taxa_wide, regc, by = c("SYMBOL" = "Symbol"))
+# regc$Symbol[regc$Accepted_Name == "Carex debilis var. rudgei"] <- "CADE5"
 
-write.csv(taxa_wide2, paste0(export_path, "./comb_data/EPA_NEIWPCC_taxa_matching.csv"), row.names = F)
+taxa_wide2 <- left_join(taxa_join, regc, by = c("SYMBOL" = "Symbol")) |>
+  select(SPECIES_NAME_ID = SPECIES_NAME_ID_fix, NWCA_NAME = NWCA_NAME_fix, SYMBOL = SYMBOL_fix,
+         Accepted_Name, INVASIVE, cval58, cval59, cval82, cval83, cval84)
 
-head(regc)
-head(taxa_wide)
-
-write.csv(taxa_wide, paste0(export_path, "comb_data/Plant_Species_List_2011-2021.csv"), row.names = F)
+# check for dup symbols
+taxa_dups <- taxa_wide2 |> group_by(SPECIES_NAME_ID, NWCA_NAME) |> summarize(recs = n()) |> filter(recs > 1)
+# Fix the 2 duplicates in the taxa table by dropping the record that's not found in the data
+taxa_wide3 <- taxa_wide2 |>
+  filter(!(SPECIES_NAME_ID == 6417 & Accepted_Name == "Potentilla anserina ssp. anserina")) |>
+  filter(!(SPECIES_NAME_ID == 32473 & Accepted_Name == "Erigeron philadelphicus var. philadelphicus"))
 
 # Add invasive column to plant cover data
-covcomb2 <- left_join(covcomb |> select(-SYMBOL),
-                      taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
+covcomb_final <- left_join(covcomb_join |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, PLOT, US_L3CODE, STATE,
+                                             CREG, WISREG, SPECIES_NAME_ID = SPECIES_NAME_ID_fix,
+                                             NWCA_NAME = NWCA_NAME_fix, COVER, HEIGHT, NE, SW, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION, CVAL, NATSTAT, WIS, ECOIND, ALIEN),
+                      taxa_wide3 |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE, cval58, cval59, cval82, cval83, cval84) |>
+                        unique(),
                       by = c("SPECIES_NAME_ID")) |>
-  filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
+  filter(!is.na(SPECIES_NAME_ID)) |>  # drops 2 empty records from 2021
+  mutate(CVAL_neiwpcc = as.numeric(case_when(US_L3CODE == 58 ~ cval58,
+                                             US_L3CODE == 59 ~ cval59,
+                                             US_L3CODE == 82 ~ cval82,
+                                             US_L3CODE == 83 ~ cval83,
+                                             US_L3CODE == 84 ~ cval84)),
+         CVAL_final = case_when(!is.na(CVAL_neiwpcc) ~ CVAL_neiwpcc,
+                                (is.na(CVAL_neiwpcc) & !CVAL %in% "Und") ~ as.numeric(CVAL),
+                                TRUE ~ NA_real_)) |>
+  select(UID:NWCA_NAME, SYMBOL, COVER:DURATION, NATSTAT:INVASIVE, CVAL_final, CVAL_neiwpcc, CVAL_EPA = CVAL)
 
-head(covcomb2)
+head(covcomb_final)
 
-# EPA's CoC values change a lot among years, affecting the vegetation MMI calculations
-# for mathematical and not ecological reasons, and also don't match the latest CoCs
-# used in New England developed by NEIWPCC. This code imports the NEIWPCC CoCs and
-# assigns them to the plot using their US_L3CODE
+# Populating species names that are synonyms in the data
+spp_update <- function(df, sppID, name, symbol){
+  df$NWCA_NAME[df$SPECIES_NAME_ID == sppID] <- name
+  df$SYMBOL[df$SPECIES_NAME_ID == sppID] <- symbol
+  df
+}
 
-
-
-covcomb3 <- left_join(covcomb2, regc, by = c("SYMBOL" = "SYMBOL"))
+covcomb_final <- spp_update(covcomb_final, 91707, "ERECHTITES HIERACIIFOLIUS", "ERHI12")
+covcomb_final <- spp_update(covcomb_final, 91514, "ARONIA xPRUNIFOLIA", "ARPR2")
+covcomb_final <- spp_update(covcomb_final, 91516, "ARONIA MELANOCARPA", "ARME6")
+table(complete.cases(covcomb_final$CVAL_neiwpcc))
+table(complete.cases(covcomb_final$CVAL_final))
 
 write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
-
 
 #---- Compiling VMMI from EPA data ----
 
 # Compile plot list to left_join results with
 plot_list1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83,
-                                      YEAR, VISIT_NO, STATE, CREG, WISREG) |>
+                                      YEAR, STATE, CREG, WISREG, US_L3CODE) |>
   unique() |> arrange(UNIQUE_ID)
-
-plot_list2 <- left_join(plot_list1, plot_sum |> select(-Date),
-                       by = c("UID", "SITE_ID", "VISIT_NO", c("YEAR" = "Year")))
-head(plot_list2)
-
-# Fix plots_missing plot count from plot_sum
-#miss_plot_num <- plot_list2 |> filter(is.na(num_plots)) |> select(UID, UNIQUE_ID, SITE_ID, YEAR)
-
-# count plots from cover data
-num_plots1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, YEAR, PLOT) |> unique() |>
-  group_by(UID, UNIQUE_ID, SITE_ID, YEAR) |>
-  summarize(num_plots_cov = sum(!is.na(PLOT)), .groups = 'drop')
-
-#fill_plots <- left_join(miss_plot_num, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
-
-plot_list3 <- left_join(plot_list2, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
-  mutate(num_plots = ifelse(is.na(num_plots), num_plots_cov, num_plots),
-         plot_diff = ifelse(abs(num_plots - num_plots_cov) %in% c(2, 3, 4), "XX", NA_character_))
 
 # It appears that the plot tables don't always include data on number of plots, so I can't
 # use that to sum up the number of plots per site. The cover data is pretty consistent, with only
 # one site not having 5 veg plots. Going to just use that to sum up the number of veg plots for
 # site level averaging.
 
-plot_list <- plot_list3 |> select(UID:WISREG, num_vplots = num_plots_cov)
-head(plot_list) # df for left_join
+# count plots from cover data
+num_plots1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, YEAR, PLOT) |> unique() |>
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(num_vplots = sum(!is.na(PLOT)), .groups = 'drop')
+
+#fill_plots <- left_join(miss_plot_num, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
+
+plot_list <- left_join(plot_list1, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
+table(plot_list$num_vplots, useNA = 'always')
 
 # % Bryophyte
 bryo_sum <- bryo_all |> group_by(UID, SITE_ID, VISIT_NO, YEAR) |>
   summarize(bryo_sum = sum(BRYOPHYTES, na.rm = T), .groups = 'drop')
 
-plot_bryo <- left_join(plot_list, bryo_sum, by = c("UID", "SITE_ID", "VISIT_NO", "YEAR")) |>
+plot_bryo <- left_join(plot_list, bryo_sum, by = c("UID", "SITE_ID", "YEAR")) |>
   mutate(bryo_cov = bryo_sum/num_vplots) |> select(-bryo_sum)
 head(plot_bryo)
 
 # Mean C
 head(covcomb_final)
-table(covcomb_final$CVAL, useNA = 'always')
+table(covcomb_final$CVAL_final, useNA = 'always')
 
 # Calculating meanC by making a list of all species on the plot, then calc. C,
 # so species found in all 5 veg plots don't count more in the mean C than
 # rare species that only occur once
-cval <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL)) |>
-  filter(!is.na(CVAL_num)) |>
-  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, CVAL_num) |> unique() |>
-  group_by(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO) |>
-  summarize(meanC = mean(CVAL_num), .groups = 'drop')
+cval <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL_final)) |>
+  #filter(!is.na(CVAL_num)) |>
+  filter(COVER > 0) |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, CVAL_num, SPECIES_NAME_ID, NWCA_NAME) |>
+  unique() |>
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(#totalC = sum(CVAL_num, na.rm = T),
+            # numSpp = sum(!is.na(CVAL_num)),
+            # meanC2 = totalC/numSpp,
+            meanC = mean(CVAL_num, na.rm = T),
+            # Cdiff = meanC2-meanC,
+            .groups = 'drop')
 
 #ignore NAs warning. Used to intentionally drop non-numeric values
 head(cval)
 head(plot_bryo)
 
-plot_br_cv <- left_join(plot_bryo, cval, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO"))
+plot_br_cv <- left_join(plot_bryo, cval, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
+head(plot_br_cv)
 
 # % Cover Disturbance Tolerant & Invasive
-dist_inv_sum1 <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL)) |>
-  filter(!is.na(CVAL_num)) |>
+dist_inv_sum1 <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL_final)) |>
+  #filter(!is.na(CVAL_num)) |>
   mutate(cov_disttol = ifelse(CVAL_num <= 4, COVER, 0),
          cov_inv = ifelse(INVASIVE == 1, COVER, 0))
 
 dist_inv_sum <- dist_inv_sum1 |>
-  group_by(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO) |>
-  summarize(disttol_sum = sum(cov_disttol),
-            invcov_sum = sum(cov_inv),
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(disttol_sum = sum(cov_disttol, na.rm = T),
+            invcov_sum = sum(cov_inv, na.rm = T),
             .groups = 'drop')
 
 head(dist_inv_sum1)
-dist_inv_plot <- left_join(plot_list, dist_inv_sum, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO")) |>
+dist_inv_plot <- left_join(plot_list, dist_inv_sum, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
   mutate(disttol_cov = disttol_sum/num_vplots,
          inv_cov = invcov_sum/num_vplots)
 
-plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO,
+plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR,
                                                            disttol_cov, inv_cov),
-                       by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO")) |>
+                       by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
   mutate(meanC_adj1 = ifelse(meanC < 3.015, 3.015, ifelse(meanC > 7.346, 7.346, meanC)),
          meanC_adj2 = ((meanC_adj1 - 3.015)/(7.346 - 3.015)) * 10,
 
@@ -448,11 +470,16 @@ plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_
          bryo_adj1 = ifelse(bryo_cov > 98.48, 98.48, bryo_cov),
          bryo_adj2 = (bryo_adj1/98.48) * 10,
 
-         vmmi = (((meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2) - 0.389)/(40 - 0.389)) * 100,
+         vmmi1 = meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2,
+         vmmi2 = ifelse(vmmi1 < 0.389, 0.389, vmmi1),
+         vmmi = ((vmmi2 - 0.389)/(40 - 0.389)) * 100,
          vmmi_rating = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair"))
-  )
+  ) |> select(-vmmi1, -vmmi2)
 
 head(plot_vmmi)
+plot_vmmi_simp <- plot_vmmi |> select(UID:SITE_ID, YEAR, STATE, meanC, meanC_adj1, meanC_adj2,
+                                      bryo_cov, bryo_adj1, bryo_adj2, disttol_cov, covtol_adj1, covtol_adj2,
+                                      inv_cov, invcov_adj1, invcov_adj2, vmmi, vmmi_rating)
 
 table(plot_vmmi$STATE, plot_vmmi$vmmi_rating)
 
@@ -460,4 +487,4 @@ ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating)) + theme_bw() +
   geom_point() + #facet_wrap(~STATE) +
   scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2"))
 
-write.csv(plot_vmmi, "./data/comb_data/Vegetation_MMI_2011-2021.csv", row.names = F)
+write.csv(plot_vmmi, paste0(export_path, "comb_data/Vegetation_MMI_2011-2021.csv"), row.names = F)
