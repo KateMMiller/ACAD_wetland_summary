@@ -378,3 +378,4 @@ write.csv(sppcoc2, "./data/COCs/Full_COC_List.csv", row.names = F)
 # on the reference lists. Tedius AF, I know.
 
 coc_list <- read.csv("./data/COCs/Full_COC_List_final.csv")
+head(coc_list)
