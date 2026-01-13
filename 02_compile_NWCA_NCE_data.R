@@ -99,7 +99,7 @@ table(bryo21$YEAR, useNA = 'always')
 bryo_all1 <- rbind(bryo11, bryo16 |> select(-DATE_COL), bryo21 |> select(-DATE_COL)) |>
   filter(UID %in% mmi_uids)
 
-bryo_all <- left_join(bryo_all1, site_l3, by = "UID")
+bryo_all <- left_join(bryo_all1, site_nce, by = c("UID", "SITE_ID", "VISIT_NO"))
 
 write.csv(bryo_all, "./data/comb_data/Bryophyte_Cover_2011-2021.csv", row.names = F)
 
@@ -250,6 +250,25 @@ table(covcomb$US_L3CODE, covcomb$YEAR)
 
 #write.csv(coc2, "./data/COCs/Full_COC_List_dups.csv", row.names = F)
 
+# Using USDA PLANTS database to establish invasive status.
+#      https://plants.usda.gov/noxious-invasive-search
+# Doesn't appear that that state-level designations are all that helpful. Going to go with,
+# if it's invasive in any state in the reporting region, it's invasive in the analysis. I
+# can't think of an example where that isn't true.
+#
+# Invasive list needs the USDA symbol to be joined to the species in the cover data. However,
+# the 2011 taxa tables don't include the symbol. I'm using the taxa 2016 and 2021 tables to
+# fill in as much of those holes, then will manually add the missing species.
+
+inv_spp1 <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
+  select(SYMBOL = Accepted.Symbol)
+
+# Pruning by hand - species to drop from invasive list
+drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
+              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
+
+inv_spp <- inv_spp1 |> filter(!SYMBOL %in% drop_spp) |> unique()
+
 # Need to make every species have a symbol to connect C values. Using the taxa21 table for the join
 covcomb2 <- right_join(taxa21 |> select(SPECIES_NAME_ID, SYMBOL = ACCEPTED_SYMBOL), # |> unique(),
                        covcomb |> select(-SYMBOL),
@@ -263,16 +282,6 @@ coc <- read.csv("./data/COCs/FULL_COC_List_Final.csv")
 covcomb_final <- left_join(covcomb2, coc,
                            by = c("SPECIES_NAME_ID", "NWCA_NAME", "SYMBOL", "CREG", "COC_reg")) |>
   select(-SCIENTIFIC_NAME)
-
-# Add Invasive column
-inv_spp1 <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
-  select(SYMBOL = Accepted.Symbol)
-
-# Pruning by hand - species to drop from invasive list
-drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
-              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
-
-inv_spp <- inv_spp1 |> filter(!SYMBOL %in% drop_spp) |> unique()
 
 head(covcomb_final)
 table(complete.cases(covcomb_final$SYMBOL)) # all TRUE
@@ -300,6 +309,7 @@ plot_list <- left_join(plot_list1, num_plots1, by = c("UID", "UNIQUE_ID",  "SITE
 table(plot_list$num_vplots, useNA = 'always')
 
 # % Bryophyte
+head(bryo_all)
 bryo_sum <- bryo_all |> group_by(UID, SITE_ID, VISIT_NO, YEAR) |>
   summarize(bryo_sum = sum(BRYOPHYTES, na.rm = T), .groups = 'drop')
 
@@ -481,6 +491,9 @@ buff21_long <- buff21 |> pivot_longer(cols = c(SOILHD_IMPERVIOUS_SURFACE:WOBSTR_
   stress = ifelse(Present == "Y", 1, 0))   # weight buffer plot by distance to the center
 
 buff21_long$YEAR <- format(as.Date(buff21_long$DATE_COL, format = "%d-%b-%y"), format = "%Y")
+table(buff21_long$YEAR[is.na(buff21_long$YEAR)],
+      buff21_long$DATE_COL[is.na(buff21_long$YEAR)], useNA = "always") # all the missing years are from 2021 b/c diff format
+buff21_long$YEAR[is.na(buff21_long$YEAR)] <- 2021
 
 buff21_sum1 <- buff21_long |> group_by(UID, SITE_ID, PLOT, LOCATION, YEAR, weight) |>
   summarize(num_stressors = sum(stress),
@@ -518,57 +531,117 @@ buff_ref <- buff_comb |> filter(SITETYPE == "HAND") |> filter(dist == "MIN") |>
   group_by(UNIQUE_ID) |> slice(1) |> data.frame() |>
   select(UID, UNIQUE_ID, SITETYPE, SITE_ID, LAT_DD83, LON_DD83, PSTL_CODE, RPT_UNIT,
          US_L3CODE, WETCLS_EVL, WETCLS_GRP, WETCLS_HGM, Year, stress_score, dist) |>
-  filter(!UID %in% c(207585, 206737, 207752)) # ACAD sentinal sites added in 2016
+  filter(!UID %in% c(207585, 206737, 207752)) #drop ACAD sentinel sites added in 2016
 
 head(buff_ref) # 62 observations
+ref_uids <- sort(unique(buff_ref$UID))
 
 write.csv(buff_ref, "./data/comb_data/Reference_sites_2011-2021.csv", row.names = F)
 
-# Calculate VMMI floor, ceiling, and thresholds
+# Use full dataset to update floor and ceiling, and buff_ref dataset to update thresholds.
 vmmi1 <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR,
                                                        disttol_cov, inv_cov),
                    by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
 
 # Calculate floor and ceiling are the 5% and 95% of all sites for each metric
-#++++
+buff_vmmi <- left_join(buff_comb |> select(UID, UNIQUE_ID, SITETYPE, SITE_ID, dist),
+                       vmmi1,
+                       by = c("UID", "UNIQUE_ID", "SITETYPE", "SITE_ID")) |>
+  mutate(site_type = ifelse(SITETYPE == "HAND" & dist == "MIN", "REF", paste0(dist, "_", SITETYPE)))
 
-buff_vmmi <- left_join(buff_ref |> select(UID, UNIQUE_ID, SITETYPE, SITE_ID, dist), vmmi1,
-                       by = c("UID", "UNIQUE_ID", "SITETYPE", "SITE_ID"))
+head(buff_vmmi)
+rangeMeanC <- quantile(buff_vmmi$meanC, probs = c(0.05, 0.95)) # 3.000877, 7.060764
+rangeBryo <- quantile(buff_vmmi$bryo_cov, probs = c(0.05, 0.95)) # 0, 98.98
+rangeDistTol <- quantile(buff_vmmi$disttol_cov, probs = c(0.05, 0.95)) #1.106, 150.551
+rangeInvCov <- quantile(buff_vmmi$inv_cov, probs = c(0.05, 0.95)) # 0, 76.585
 
+# Now to check against original vegMMI thresholds. First adjusting individual metrics using the
+# new floor and ceiling calculated above.
+plot_vmmi <- buff_vmmi |>
+  mutate(meanC_adj1 = ifelse(meanC < rangeMeanC[1], rangeMeanC[1],
+                             ifelse(meanC > rangeMeanC[2], rangeMeanC[2], meanC)),
+         meanC_adj2 = ((meanC_adj1 - rangeMeanC[1])/(rangeMeanC[2] - rangeMeanC[1])) * 10,
 
-# Now to check against original vegMMI thresholds
-plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR,
-                                                           disttol_cov, inv_cov),
-                       by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
-  mutate(meanC_adj1 = ifelse(meanC < 3.015, 3.015, ifelse(meanC > 7.346, 7.346, meanC)),
-         meanC_adj2 = ((meanC_adj1 - 3.015)/(7.346 - 3.015)) * 10,
+         covtol_adj1 = ifelse(disttol_cov < rangeDistTol[1], rangeDistTol[1],
+                              ifelse(disttol_cov > rangeDistTol[2], rangeDistTol[2], disttol_cov)),
+         covtol_adj2 = ((((covtol_adj1 - rangeDistTol[1])/(rangeDistTol[2] - rangeDistTol[1]))*10) - 10) * -1,
 
-         covtol_adj1 = ifelse(disttol_cov < 0.386, 0, ifelse(disttol_cov > 136.645, 136.645, disttol_cov)),
-         covtol_adj2 = ((((covtol_adj1 - 0.386)/(136.645 - 0.386))*10) - 10) * -1,
+         invcov_adj1 = ifelse(inv_cov < rangeInvCov[1], rangeInvCov[1],
+                              ifelse(inv_cov > rangeInvCov[2], rangeInvCov[2], inv_cov)),
+         invcov_adj2 = ((((invcov_adj1 - rangeInvCov[1])/(rangeInvCov[2] - rangeInvCov[1]))*10) - 10) * -1,
 
-         invcov_adj1 = ifelse(inv_cov > 38.45, 38.45, inv_cov),
-         invcov_adj2 = ((((invcov_adj1/38.45) * 10) - 10))*-1,
+         bryo_adj1 = ifelse(bryo_cov < rangeBryo[1], rangeBryo[1],
+                             ifelse(bryo_cov > rangeBryo[2], rangeBryo[2], bryo_cov)),
+         bryo_adj2 = ((bryo_adj1 - rangeBryo[1])/(rangeBryo[2] - rangeBryo[1])) * 10,
 
-         bryo_adj1 = ifelse(bryo_cov > 98.48, 98.48, bryo_cov),
-         bryo_adj2 = (bryo_adj1/98.48) * 10,
+         vmmi1 = meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2)
 
-         vmmi1 = meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2,
-         vmmi2 = ifelse(vmmi1 < 0.389, 0.389, vmmi1),
-         vmmi = ((vmmi2 - 0.389)/(40 - 0.389)) * 100,
-         vmmi_rating = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair"))
-  ) |> select(-vmmi1, -vmmi2)
+# Determine floor and ceiling of vmmi
+rangeVMMI <- range(plot_vmmi$vmmi1) # 0.2667, 40.0
 
-head(plot_vmmi)
-plot_vmmi_simp <- plot_vmmi |> select(UID:SITE_ID, YEAR, STATE, meanC, meanC_adj1, meanC_adj2,
-                                      bryo_cov, bryo_adj1, bryo_adj2, disttol_cov, covtol_adj1, covtol_adj2,
-                                      inv_cov, invcov_adj1, invcov_adj2, vmmi, vmmi_rating)
+plot_vmmi <- plot_vmmi |>
+  mutate(vmmi2 = ifelse(vmmi1 < rangeVMMI[1], rangeVMMI[1], vmmi1), # set to min for future calcs., not needed here
+         vmmi = ((vmmi2 - rangeVMMI[1])/(rangeVMMI[2] - rangeVMMI[1])) * 100)
 
-table(plot_vmmi$STATE, plot_vmmi$vmmi_rating)
+# Plot the different disturbance categories to check that it makes sense
+plot_vmmi$site_type_fac <- factor(plot_vmmi$site_type, levels = c("REF", "MIN_PROB", "INT_HAND", "INT_PROB",
+                                                                  "MOST_HAND", "MOST_PROB"))
+
+ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) + geom_boxplot() + theme_bw()
+
+# Calculate thresholds
+vmmi_ref <- plot_vmmi |> filter(UID %in% ref_uids)
+thresh <- quantile(vmmi_ref$vmmi, probs = c(0.05, 0.25))
+thresh[1] # Fair/Poor thresh = 41.48136
+thresh[2] # Good/Fair thresh = 60.94853
+
+plot_vmmi <- plot_vmmi |>
+  mutate(vmmi_rating_orig = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair")),
+         vmmi_rating = ifelse(vmmi > thresh[2], "Good", ifelse(vmmi < thresh[1], "Poor", "Fair")))
+
+table(plot_vmmi$vmmi_rating) # new thresholds aren't as steep, and make more sense given CoC changes
+table(plot_vmmi$vmmi_rating_orig)
+
+ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig)) + theme_bw() +
+  geom_point() + #facet_wrap(~STATE) +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  facet_wrap(~SITETYPE)
 
 ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating)) + theme_bw() +
   geom_point() + #facet_wrap(~STATE) +
   scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
   facet_wrap(~SITETYPE)
 
-write.csv(plot_vmmi, "./data/comb_data/Vegetation_MMI_2011-2021.csv", row.names = F)
+# ACAD sites
+acad_sites <- paste(paste0("R", 301:310, collapse = "|"),
+                    paste0("HP", 301:310, collapse = "|"), sep = "|")
 
+acad_vmmi <- plot_vmmi |> filter(grepl(acad_sites, SITE_ID)) |>
+  mutate(local_code = case_when(grepl("301", SITE_ID) ~ "DUCK",
+                                grepl("302", SITE_ID) ~ "WMTN",
+                                grepl("303", SITE_ID) ~ "BIGH",
+                                grepl("304", SITE_ID) ~ "GILM",
+                                grepl("305", SITE_ID) ~ "LITH",
+                                grepl("306", SITE_ID) ~ "NEMI",
+                                grepl("307", SITE_ID) ~ "GRME",
+                                grepl("308", SITE_ID) ~ "HEBR",
+                                grepl("309", SITE_ID) ~ "HODG",
+                                grepl("310", SITE_ID) ~ "FRAZ"))
+table(acad_vmmi$vmmi_rating)
+table(acad_vmmi$vmmi_rating_orig)
+
+ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating, group = local_code)) + theme_bw() +
+  geom_point() + geom_line() +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  facet_wrap(~local_code) +
+  ylim(0, 100)
+
+ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = local_code)) + theme_bw() +
+  geom_point() + geom_line() +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  facet_wrap(~local_code) +
+  ylim(0, 100)
+
+
+write.csv(acad_vmmi, "./data/epa_acad/Vegetation_MMI_2011-2021.csv", row.names = F)
+write.csv(plot_vmmi, "./data/comb_data/Vegetation_MMI_2011-2021_allsites.csv", row.names = F)
