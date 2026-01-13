@@ -53,9 +53,9 @@ ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   geom_point() + geom_line() + facet_wrap(~Code)
 
 # thresholds
-# good > 65.22746
-# fair 52.785 - 65.22746
-# poor < 52.785
+# good > 60.94853
+# fair 41.48136 - 60.94853
+# poor < 41.48136
 
 ggplot(vmmi, aes(x = Year, y = meanC, group = Code)) +
   theme_bw() + geom_point() + geom_line() + facet_wrap(~Code)
@@ -64,7 +64,8 @@ ggplot(vmmi, aes(x = Year, y = Bryophyte_Cover, group = Code)) +
   theme_bw() + geom_point() + geom_line() + facet_wrap(~Code)
 
 ggplot(vmmi, aes(x = Year, y = Invasive_Cover, group = Code)) +
-  theme_bw() + geom_point() + geom_line() + facet_wrap(~Code)
+  theme_bw() + geom_point() + geom_line() + facet_wrap(~Code) +
+  ylim(0, 40)
 
 ggplot(vmmi, aes(x = Year, y = Cover_Tolerant, group = Code)) +
   theme_bw() + geom_point() + geom_line() + facet_wrap(~Code)
@@ -76,17 +77,12 @@ ggplot(vmmi, aes(x = Year, y = meanC, group = Code)) +
 ggplot(vmmi, aes(x = Year, y = Bryophyte_Cover, group = Code)) +
   theme_bw() + geom_point() + geom_smooth(method = "lm", se = F)
 
+# weird bc so low
 ggplot(vmmi, aes(x = Year, y = Invasive_Cover, group = Code)) +
   theme_bw() + geom_point() + geom_smooth(method = "lm", se = F)
 
 ggplot(vmmi, aes(x = Year, y = Cover_Tolerant, group = Code)) +
   theme_bw() + geom_point() + geom_smooth(method = "lm", se = F)
-
-
-head(VIEWS_RAM$species_list)
-head(VIEWS_RAM$tlu_Plant)
-View(VIEWS_RAM$tlu_Plant)
-
 
 spp <- left_join(VIEWS_RAM$species_list,
                  VIEWS_RAM$tlu_Plant[,c("TSN", "Coef_wetness")],
