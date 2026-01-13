@@ -642,6 +642,10 @@ ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = loca
   facet_wrap(~local_code) +
   ylim(0, 100)
 
+acad_uids <- unique(acad_vmmi$UID)
 
-write.csv(acad_vmmi, "./data/epa_acad/Vegetation_MMI_2011-2021.csv", row.names = F)
-write.csv(plot_vmmi, "./data/comb_data/Vegetation_MMI_2011-2021_allsites.csv", row.names = F)
+write.csv(acad_vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_REF.csv", row.names = F)
+write.csv(plot_vmmi |> filter(!UID %in% acad_uids),
+          "./results/Vegetation_MMI_2011-2021_EPA_allsites.csv", row.names = F)
+write.csv(plot_vmmi |> filter(!UID %in% acad_uids) |> filter(SITETYPE == "PROB"),
+          "./results/Vegetation_MMI_2011-2021_EPA_PROB.csv", row.names = F)

@@ -17,59 +17,39 @@ vmmi <- left_join(vmmi1,
 head(loc)
 head(vmmi)
 range(vmmi$vmmi)
-
-#vmmi_plot <-
-ggplot(vmmi, aes(x = Year, y = vmmi, group = Code, color = HGM_Class)) +
-  theme_bw() +
-  ylim(20, 100) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 52.785),
-            fill = "indianred", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
-            fill = "gold", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "forestgreen", alpha = 0.2) +
-  geom_point() + geom_line() +
-  scale_color_manual(values = c("Depression" = "#2A4482",
-                                "Flats" = "#27D641",
-                                "Riverine" = "#27D6D0",
-                                "Slope" = "#D6B027"))
-
+write.csv(vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv", row.names = F)
 
 ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
   ylim(20, 100) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 52.785),
-            fill = "indianred", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
-            fill = "gold", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "green", alpha = 0.2) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 41.48136),
+            fill = "#CC6666", alpha = 0.2) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 41.48136, ymax = 60.94853),
+            fill = "#FFF394", alpha = 0.2) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 60.94853, ymax = 100),
+            fill = "#88CF89", alpha = 0.2) +
   geom_point() + geom_line() + facet_wrap(~HGM_Class)
-  # scale_color_manual(values = c("Depression" = "#2A4482",
-  #                               "Flats" = "#27D641",
-  #                               "Riverine" = "#27D6D0",
-  #                               "Slope" = "#D6B027"))
 
 ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
   ylim(20, 100) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 52.785),
-            fill = "indianred", alpha = 0.6) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
-            fill = "gold", alpha = 0.6) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "green", alpha = 0.6) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 41.48136),
+            fill = "#CC6666", alpha = 0.6) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 41.48136, ymax = 60.94853),
+            fill = "#FFF394", alpha = 0.6) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 60.94853, ymax = 100),
+            fill = "#88CF89", alpha = 0.6) +
   geom_point() + geom_line() + facet_wrap(~FWS_Class_Code)
 
 ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
   ylim(20, 100) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 52.785),
-            fill = "indianred", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 52.786, ymax = 65.22746),
-            fill = "gold", alpha = 0.2) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 65.22746, ymax = 100),
-            fill = "green", alpha = 0.2) +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 41.48136),
+            fill = "#CC6666") +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 41.48136, ymax = 60.94853),
+            fill = "#FFF394") +
+  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 60.94853, ymax = 100),
+            fill = "#88CF89") +
   geom_point() + geom_line() + facet_wrap(~Code)
 
 # thresholds
@@ -179,10 +159,10 @@ qqnorm(residuals(meancmod3))
 summary(meancmod3)
 
 # % Bryophyte Trends
-bryomod_full <- lmer(Bryophyte_Cover ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi)
-bryomod3 <- lmer(Bryophyte_Cover ~ HGM_Class + (1 + year_cen|Code), data = vmmi)
-bryomod2 <- lmer(Bryophyte_Cover ~ year_cen + (1 + year_cen|Code), data = vmmi)
-bryomod1 <- lmer(Bryophyte_Cover ~ 1 + (1 + year_cen|Code), data = vmmi)
+bryomod_full <- lmer(Bryophyte_Cover ~ year_cen + HGM_Class + (1|Code), data = vmmi)
+bryomod3 <- lmer(Bryophyte_Cover ~ HGM_Class + (1|Code), data = vmmi) # random slopes failed to converge, so rand. int.
+bryomod2 <- lmer(Bryophyte_Cover ~ year_cen + (1|Code), data = vmmi)
+bryomod1 <- lmer(Bryophyte_Cover ~ 1 + (1|Code), data = vmmi)
 
 # Bryo3 didn't converge. Diagnostics aren't very good. Bryo is kind of a weird metric
 anova(bryomod_full, bryomod3, bryomod2, bryomod1)
@@ -196,7 +176,6 @@ tolmod3 <- lmer(Cover_Tolerant ~ HGM_Class + (1 + year_cen|Code), data = vmmi)
 tolmod2 <- lmer(Cover_Tolerant ~ year_cen + (1 + year_cen|Code), data = vmmi)
 tolmod1 <- lmer(Cover_Tolerant ~ 1 + (1 + year_cen|Code), data = vmmi)
 
-# tol3 didn't converge. Diagnostics aren't very good. tol is kind of a weird metric
 anova(tolmod_full, tolmod3, tolmod2, tolmod1)
 plot(tolmod3)
 qqnorm(residuals(tolmod3))
@@ -256,8 +235,8 @@ stress <- left_join(locev,
                     stress_pre,
                     by = c("Code", "Year"))
 
-# ENDED HERE
-
+#+++ ENDED HERE +++
+# I don't remember what I was planning to do. Need to inspect stressors in more detail.
 
 table(stress$Stressor_Category, stress$Stressor)
 table(stress$Stressor_Category)
