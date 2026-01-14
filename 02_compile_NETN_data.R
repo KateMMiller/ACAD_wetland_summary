@@ -14,6 +14,8 @@ loc <- VIEWS_RAM$locations
 vmmi <- left_join(vmmi1,
                   loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
                   by = "Code")
+
+# Check that COCs match between NETN and EPA analyses
 head(loc)
 head(vmmi)
 range(vmmi$vmmi)
