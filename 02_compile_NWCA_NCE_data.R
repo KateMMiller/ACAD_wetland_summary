@@ -587,7 +587,12 @@ plot_vmmi <- plot_vmmi |>
 plot_vmmi$site_type_fac <- factor(plot_vmmi$site_type, levels = c("REF", "MIN_PROB", "INT_HAND", "INT_PROB",
                                                                   "MOST_HAND", "MOST_PROB"))
 
-ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) + geom_boxplot() + theme_bw()
+ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) +
+  geom_boxplot() + theme_classic() +
+  geom_jitter(alpha = 0.2) +
+  labs(x = "Site Disturbance Type", y = "Veg. MMI")
+
+ggsave("./results/VMMI_distribution_site_type.png", height = 8, width = 10)
 
 # Calculate thresholds
 vmmi_ref <- plot_vmmi |> filter(UID %in% ref_uids)
@@ -604,13 +609,21 @@ table(plot_vmmi$vmmi_rating_orig)
 
 ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig)) + theme_bw() +
   geom_point() + #facet_wrap(~STATE) +
-  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  scale_color_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A")) +
   facet_wrap(~SITETYPE)
 
-ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating)) + theme_bw() +
-  geom_point() + #facet_wrap(~STATE) +
-  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
-  facet_wrap(~SITETYPE)
+plot_vmmi$vmmi_rating_fac <- factor(plot_vmmi$vmmi_rating, levels = c("Good", "Fair", "Poor"))
+
+ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_fac)) + theme_bw() +
+  geom_jitter() + #facet_wrap(~STATE) +
+  scale_color_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A"),
+                     name = "Rating") +
+  facet_wrap(~SITETYPE) +
+  geom_hline(yintercept = thresh[1], linewidth = 0.05, color = "darkgrey") +
+  geom_hline(yintercept = thresh[2], linewidth = 0.05, color = "darkgrey") +
+  labs(y = "Vegetation MMI", x = NULL)
+
+ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 10, height = 6)
 
 # ACAD sites
 acad_sites <- paste(paste0("R", 301:310, collapse = "|"),
