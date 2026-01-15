@@ -619,8 +619,9 @@ ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_fac)) + theme_bw()
   scale_color_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A"),
                      name = "Rating") +
   facet_wrap(~SITETYPE) +
-  geom_hline(yintercept = thresh[1], linewidth = 0.05, color = "darkgrey") +
-  geom_hline(yintercept = thresh[2], linewidth = 0.05, color = "darkgrey") +
+  geom_hline(yintercept = thresh[1], linewidth = 0.1, color = "#696969",
+             linetype = 'dashed') +
+  geom_hline(yintercept = thresh[2], linewidth = 0.05, color = "#696969") +
   labs(y = "Vegetation MMI", x = NULL)
 
 ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 10, height = 6)
