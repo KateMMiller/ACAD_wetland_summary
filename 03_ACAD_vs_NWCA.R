@@ -2,6 +2,17 @@ library(tidyverse)
 
 thresh <- c(41.48136, 60.94853)
 
+theme_wet <- function(){
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_rect(color = "#696969", fill = "white",
+                                        size = 0.4), plot.background = element_blank(), strip.background = element_rect(color = "#696969",
+                                                                                                                        fill = "grey90", size = 0.4), legend.key = element_blank(),
+        axis.line.x = element_line(color = "#696969", size = 0.4),
+        axis.line.y = element_line(color = "#696969", size = 0.4),
+        axis.ticks = element_line(color = "#696969", size = 0.4))
+}
+
+
 acad_ref <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_REF.csv") |>
   select(SITE_ID, YEAR, vmmi, vmmi_rating) |>
   mutate(site_type = "ACAD Sent.")
@@ -19,7 +30,7 @@ nwca_prob <- nwca_prob1 |>
 nwca_ref <- read.csv('./results/Vegetation_MMI_2011-2021_EPA_allsites.csv') |>
   filter(site_type_fac == "REF") |>
   select(SITE_ID, YEAR, vmmi, vmmi_rating) |>
-  mutate(site_type = "EPA Ref.")
+  mutate(site_type = "EPA Ref.") # ACAD Sent. not included
 
 acad_ram <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv") |>
   select(SITE_ID = Code, YEAR = Year, vmmi, vmmi_rating) |>
@@ -32,13 +43,13 @@ vmmi_comb$site_type_fac <- factor(vmmi_comb$site_type,
 
 # Add great meadow sites here, after updating the thresholds for ratings.
 ggplot(vmmi_comb, aes(x = site_type_fac, y = vmmi)) +
-  geom_boxplot() + theme_classic() +
+  geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
   labs(x = "Site Disturbance Type", y = "Veg. MMI") +
-  geom_hline(yintercept = thresh[1], linewidth = 0.1, color = "#696969",
+  geom_hline(yintercept = thresh[1], linewidth = 0.5, color = "#696969",
              linetype = 'dashed') +
-  geom_hline(yintercept = thresh[2], linewidth = 0.05, color = "#696969") +
+  geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969") +
   labs(y = "Vegetation MMI", x = NULL)
 
 
-ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 8, width = 10)
+ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 4, width = 6)

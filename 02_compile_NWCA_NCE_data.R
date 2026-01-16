@@ -11,6 +11,16 @@ library(tidyverse)
 export_path <- "C:/NETN/R_Dev/ACAD_wetland_summary/data/epa_nce/"
 #dir.create(paste0(export_path, "comb_data/"))
 
+theme_wet <- function(){
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_rect(color = "#696969", fill = "white",
+                                        size = 0.4), plot.background = element_blank(), strip.background = element_rect(color = "#696969",
+                                                                                                                        fill = "grey90", size = 0.4), legend.key = element_blank(),
+        axis.line.x = element_line(color = "#696969", size = 0.4),
+        axis.line.y = element_line(color = "#696969", size = 0.4),
+        axis.ticks = element_line(color = "#696969", size = 0.4))
+}
+
 #--- Combining data across years ----
 # For the following datasets, I'm row binding data across visits by intersecting the columns each dataset has
 # in common to start with. There may be columns in later datasets that need adding, but I'll deal
@@ -550,10 +560,10 @@ buff_vmmi <- left_join(buff_comb |> select(UID, UNIQUE_ID, SITETYPE, SITE_ID, di
   mutate(site_type = ifelse(SITETYPE == "HAND" & dist == "MIN", "REF", paste0(dist, "_", SITETYPE)))
 
 head(buff_vmmi)
-rangeMeanC <- quantile(buff_vmmi$meanC, probs = c(0.05, 0.95)) # 3.000877, 7.060764
-rangeBryo <- quantile(buff_vmmi$bryo_cov, probs = c(0.05, 0.95)) # 0, 98.98
-rangeDistTol <- quantile(buff_vmmi$disttol_cov, probs = c(0.05, 0.95)) #1.106, 150.551
-rangeInvCov <- quantile(buff_vmmi$inv_cov, probs = c(0.05, 0.95)) # 0, 76.585
+(rangeMeanC <- quantile(buff_vmmi$meanC, probs = c(0.05, 0.95))) # 3.000877, 7.060764
+(rangeBryo <- quantile(buff_vmmi$bryo_cov, probs = c(0.05, 0.95))) # 0, 98.98
+(rangeDistTol <- quantile(buff_vmmi$disttol_cov, probs = c(0.05, 0.95))) #1.106, 150.551
+(rangeInvCov <- quantile(buff_vmmi$inv_cov, probs = c(0.05, 0.95))) # 0, 76.585
 
 # Now to check against original vegMMI thresholds. First adjusting individual metrics using the
 # new floor and ceiling calculated above.
@@ -577,7 +587,7 @@ plot_vmmi <- buff_vmmi |>
          vmmi1 = meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2)
 
 # Determine floor and ceiling of vmmi
-rangeVMMI <- range(plot_vmmi$vmmi1) # 0.2667, 40.0
+(rangeVMMI <- range(plot_vmmi$vmmi1)) # 0.2667, 40.0
 
 plot_vmmi <- plot_vmmi |>
   mutate(vmmi2 = ifelse(vmmi1 < rangeVMMI[1], rangeVMMI[1], vmmi1), # set to min for future calcs., not needed here
@@ -588,11 +598,11 @@ plot_vmmi$site_type_fac <- factor(plot_vmmi$site_type, levels = c("REF", "MIN_PR
                                                                   "MOST_HAND", "MOST_PROB"))
 
 ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) +
-  geom_boxplot() + theme_classic() +
+  geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
   labs(x = "Site Disturbance Type", y = "Veg. MMI")
 
-ggsave("./results/VMMI_distribution_site_type.png", height = 8, width = 10)
+ggsave("./results/VMMI_distribution_site_type.png", height = 4, width = 6)
 
 # Calculate thresholds
 vmmi_ref <- plot_vmmi |> filter(UID %in% ref_uids)
@@ -607,24 +617,39 @@ plot_vmmi <- plot_vmmi |>
 table(plot_vmmi$vmmi_rating) # new thresholds aren't as steep, and make more sense given CoC changes
 table(plot_vmmi$vmmi_rating_orig)
 
-ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig)) + theme_bw() +
+ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig)) + theme_wet() +
   geom_point() + #facet_wrap(~STATE) +
   scale_color_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A")) +
   facet_wrap(~SITETYPE)
 
 plot_vmmi$vmmi_rating_fac <- factor(plot_vmmi$vmmi_rating, levels = c("Good", "Fair", "Poor"))
+plot_vmmi$site_type2 <- factor(case_when(plot_vmmi$site_type_fac %in% c("REF") ~ "REF",
+                                         plot_vmmi$site_type_fac %in%
+                                           c("MIN_PROB", "INT_PROB", "MOST_PROB") ~ "PROB",
+                                         TRUE ~ "OTH"),
+                               levels = c("REF", "PROB", "OTH"))
 
-ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_fac)) + theme_bw() +
-  geom_jitter() + #facet_wrap(~STATE) +
+table(plot_vmmi$site_type2)
+
+ggplot(plot_vmmi |> filter(site_type_fac %in% c("REF", "MIN_PROB", "INT_PROB", "MOST_PROB")) |>
+         droplevels(),
+       aes(x = YEAR, y = vmmi, color = vmmi_rating_fac, fill = vmmi_rating_fac,
+           shape = vmmi_rating_fac)) +
+  theme_wet() +
+  geom_jitter(width = 0.2) + #facet_wrap(~STATE) +
   scale_color_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A"),
                      name = "Rating") +
-  facet_wrap(~SITETYPE) +
-  geom_hline(yintercept = thresh[1], linewidth = 0.1, color = "#696969",
+  scale_fill_manual(values = c("Poor" = "#CC6666", "Fair" = "#DED864", "Good" = "#6AB06A"),
+                     name = "Rating") +
+  scale_shape_manual(values = c("Poor" = 25, "Fair" = 19, "Good" = 24),
+                     name = "Rating") +
+  facet_wrap(~site_type2) +
+  geom_hline(yintercept = thresh[1], linewidth = 0.5, color = "#696969",
              linetype = 'dashed') +
-  geom_hline(yintercept = thresh[2], linewidth = 0.05, color = "#696969") +
+  geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969") +
   labs(y = "Vegetation MMI", x = NULL)
 
-ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 10, height = 6)
+ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 6, height = 4)
 
 # ACAD sites
 acad_sites <- paste(paste0("R", 301:310, collapse = "|"),
