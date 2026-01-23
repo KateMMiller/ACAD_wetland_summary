@@ -91,7 +91,8 @@ vmmimod3 <- lmer(vmmi ~ HGM_Class + (1 + year_cen|Code) + (1|year_fac), data = v
 vmmimod2 <- lmer(vmmi ~ year_cen + (1 + year_cen|Code) + (1|year_fac), data = vmmi_ram)
 vmmimod1 <- lmer(vmmi ~ 1 + (1 + year_cen|Code) + (1|year_fac), data = vmmi_ram)
 
-anova(vmmimod_full, vmmimod3, vmmimod2, vmmimod1)
+AIC(vmmimod1, vmmimod3, vmmimod2, vmmimod_full)
+
 plot(vmmimod3)
 qqnorm(residuals(vmmimod3))
 summary(vmmimod3)
@@ -102,7 +103,7 @@ meancmod3 <- lmer(meanC ~ HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
 meancmod2 <- lmer(meanC ~ year_cen + (1 + year_cen|Code), data = vmmi_ram)
 meancmod1 <- lmer(meanC ~ 1 + (1 + year_cen|Code), data = vmmi_ram)
 
-anova(meancmod_full, meancmod3, meancmod2, meancmod1)
+AIC(meancmod1, meancmod3, meancmod2, meancmod_full)
 plot(meancmod3)
 qqnorm(residuals(meancmod3))
 summary(meancmod3)
@@ -115,6 +116,7 @@ bryomod1 <- lmer(Bryophyte_Cover ~ 1 + (1|Code), data = vmmi_ram)
 
 # Bryo3 didn't converge. Diagnostics aren't very good. Bryo is kind of a weird metric
 anova(bryomod_full, bryomod3, bryomod2, bryomod1)
+AIC(bryomod1, bryomod3, bryomod2, bryomod_full)
 plot(bryomod3)
 qqnorm(residuals(bryomod3))
 summary(bryomod3)
@@ -126,6 +128,20 @@ tolmod2 <- lmer(Cover_Tolerant ~ year_cen + (1 + year_cen|Code), data = vmmi_ram
 tolmod1 <- lmer(Cover_Tolerant ~ 1 + (1 + year_cen|Code), data = vmmi_ram)
 
 anova(tolmod_full, tolmod3, tolmod2, tolmod1)
+AIC(tolmod1, tolmod3, tolmod2, tolmod_full)
+plot(tolmod3)
+qqnorm(residuals(tolmod3))
+summary(tolmod3)
+
+# Coef of Wetness Trends
+# +++++ ENDED HERE +++++
+tolmod_full <- lmer(Cover_Tolerant ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
+tolmod3 <- lmer(Cover_Tolerant ~ HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
+tolmod2 <- lmer(Cover_Tolerant ~ year_cen + (1 + year_cen|Code), data = vmmi_ram)
+tolmod1 <- lmer(Cover_Tolerant ~ 1 + (1 + year_cen|Code), data = vmmi_ram)
+
+anova(tolmod_full, tolmod3, tolmod2, tolmod1)
+AIC(tolmod1, tolmod3, tolmod2, tolmod_full)
 plot(tolmod3)
 qqnorm(residuals(tolmod3))
 summary(tolmod3)
