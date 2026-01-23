@@ -51,5 +51,4 @@ ggplot(vmmi_comb, aes(x = site_type_fac, y = vmmi)) +
   geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969") +
   labs(y = "Vegetation MMI", x = NULL)
 
-
 ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 4, width = 6)
