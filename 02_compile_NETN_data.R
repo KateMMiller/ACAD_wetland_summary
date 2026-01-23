@@ -5,21 +5,80 @@
 library(tidyverse)
 library(wetlandACAD)
 library(lme4)
-importRAM(export_protected = T)
+library(sf)
 
-names(VIEWS_RAM)
+# RAM data
+importRAM(export_protected = T)
 
 vmmi1 <- sumVegMMI()
 loc <- VIEWS_RAM$locations
 vmmi <- left_join(vmmi1,
                   loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
-                  by = "Code")
+                  by = "Code") |>
+  select(Code, Panel, X = xCoordinate, Y = yCoordinate, Year, meanC, Bryophyte_Cover,
+         Invasive_Cover, Cover_Tolerant, vmmi, vmmi_rating, vmmi_rating_orig, FWS_Class_Code, HGM_Class)
+
+# Sentinel data
+vmmi_sent1 <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_REF.csv")
+
+# Bring in FWS Code and HGM code
+epa_site <- read.csv("./data/comb_data/Site_Information_2011-2021.csv") |>
+  filter(UID %in% unique(vmmi_sent1$UID)) |>
+  select(UID, WETCLS_EVL, WETCLS_HGM)
+
+vmmi_sent2 <- left_join(vmmi_sent1, epa_site, by = "UID")
+
+vmmi_sent_sf <- st_as_sf(vmmi_sent2, coords = c("LON_DD83", "LAT_DD83"), crs = 4269)
+vmmi_sent_utm <- st_transform(vmmi_sent_sf, crs = 26919)
+head(vmmi_sent_utm)
+vmmi_sent_xy <- st_coordinates(vmmi_sent_utm)
+head(vmmi_sent_xy)[,1]
+vmmi_sent2 <- cbind(vmmi_sent2,
+                   X = vmmi_sent_xy[,1], Y = vmmi_sent_xy[,2])
+
+head(vmmi_sent2)
+
+vmmi_sent3 <- vmmi_sent2 |>
+  mutate(Panel = 0,
+         HGM_Class = case_when(WETCLS_HGM %in% c("DEPRESSION", "DPRSS") ~ "Depression",
+                               WETCLS_HGM == "FLATS" ~ "Flats",
+                               WETCLS_HGM == "RIVERINE" ~ "Riverine",
+                               WETCLS_HGM == "SLOPE" ~ "Slope")) |>
+  select(Code = local_code, Panel, X, Y, Year = YEAR, meanC, Bryophyte_Cover = bryo_cov,
+         Invasive_Cover = inv_cov, Cover_Tolerant = disttol_cov, vmmi, vmmi_rating,
+         vmmi_rating_orig, FWS_Class_Code = WETCLS_EVL, HGM_Class)
+
+# combine sites
+vmmi_comb <- rbind(vmmi, vmmi_sent3)
 
 # Check that COCs match between NETN and EPA analyses
-head(loc)
-head(vmmi)
-range(vmmi$vmmi)
+# Only interested in species that have been found in ACAD.
+ramspp <- VIEWS_RAM$species_list |> select(Latin_Name, PLANTS_Code, CoC_ME_ACAD) |> distinct()
+spplist <- VIEWS_RAM$tlu_Plant |> select(Latin_Name, PLANTS_Code, CoC_ME_ACAD)
+
+sentspp <- read.csv("./data/comb_data/Plant_Cover_2011-2021.csv") |>
+  filter(UID %in% unique(vmmi_sent1$UID)) |>
+  select(SYMBOL, NWCA_NAME, CVAL_final, NWCA_CVAL, CVal, Updated) |> distinct()
+head(sentspp)
+head(ramspp)
+setdiff(unique(sentspp$SYMBOL), unique(ramspp$PLANTS_Code)) # 30 species on epa list on in ram data
+setdiff(unique(sentspp$SYMBOL), unique(spplist$PLANTS_Code)) # 15 on epa list not on ram tlu_plants; mostly synonyms
+
+epaspp <- read.csv("./data/COCs/Full_COC_List_Final.csv") |>
+  filter(COC_reg == "82") |>
+  select(SYMBOL, NWCA_NAME, CVal:Updated)
+
+spplist_check <- left_join(spplist, epaspp, by = c("PLANTS_Code" = "SYMBOL")) |>
+  filter(PLANTS_Code %in% c(ramspp$PLANTS_Code, sentspp$SYMBOL)) |>
+  arrange(Latin_Name) |>
+  mutate(COC_diff = abs(CoC_ME_ACAD - as.numeric(CVAL_final))) |>
+  filter(COC_diff > 0)
+
+spplist_check # no species differences in COCs between NETN database and EPA CoC list
+
 write.csv(vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv", row.names = F)
+write.csv(vmmi_comb, "./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT.csv", row.names = F)
+head(vmmi_comb)
 
 ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
@@ -43,16 +102,17 @@ ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
             fill = "#88CF89", alpha = 0.6) +
   geom_point() + geom_line() + facet_wrap(~FWS_Class_Code)
 
-ggplot(vmmi, aes(x = Year, y = vmmi, group = Code)) +
+ggplot(vmmi_comb, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
   ylim(20, 100) +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 20, ymax = 41.48136),
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = 20, ymax = 41.48136),
             fill = "#CC6666") +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 41.48136, ymax = 60.94853),
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = 41.48136, ymax = 60.94853),
             fill = "#FFF394") +
-  geom_rect(aes(xmin = 2012, xmax = 2025, ymin = 60.94853, ymax = 100),
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = 60.94853, ymax = 100),
             fill = "#88CF89") +
-  geom_point() + geom_line() + facet_wrap(~Code)
+  geom_point() + geom_line() + facet_wrap(~Code) +
+  labs(y = "Vegetation MMI")
 
 # thresholds
 # good > 60.94853
