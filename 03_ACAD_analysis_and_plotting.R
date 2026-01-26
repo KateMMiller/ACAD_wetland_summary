@@ -1,10 +1,23 @@
 library(tidyverse)
+library(lme4)
+library(broom.mixed)
 
 vmmi_comb <- read.csv("./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT.csv") |>
   mutate(site_type = ifelse(Panel == 0, "SENT", "RAM"))
+
 vmmi_ram <- vmmi_comb |> filter(grepl("R-", Code))
 
 thresh <- c(41.48136, 60.94853)
+
+theme_wet <- function(){
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_rect(color = "#696969", fill = "white",
+                                        size = 0.4), plot.background = element_blank(), strip.background = element_rect(color = "#696969",
+                                                                                                                        fill = "grey90", size = 0.4), legend.key = element_blank(),
+        axis.line.x = element_line(color = "#696969", size = 0.4),
+        axis.line.y = element_line(color = "#696969", size = 0.4),
+        axis.ticks = element_line(color = "#696969", size = 0.4))
+}
 
 ggplot(vmmi_comb, aes(x = Year, y = vmmi, group = Code)) +
   theme_bw() +
@@ -58,7 +71,6 @@ ggplot(vmmi_comb, aes(x = Year, y = mean_wet, group = Code)) +
             fill = "forestgreen", alpha = 0.2) +
   geom_point() + geom_line() + facet_wrap(~Code)
 
-table(spp$Coef_wetness)
 
 ggplot(vmmi_comb, aes(x = Year, y = mean_wet)) +
   theme_bw() + labs(y = "Mean Wetness") +
@@ -72,6 +84,17 @@ ggplot(vmmi_comb, aes(x = Year, y = mean_wet)) +
   geom_point() + geom_smooth(se = F) +
   facet_wrap(~site_type)
 
+ggplot(vmmi_ram, aes(x = Year, y = mean_wet)) +
+  theme_bw() + labs(y = "Mean Wetness") +
+  ylim(-5, 1) +
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = -5, ymax = -3),
+            fill = "dodgerblue4", alpha = 0.2) +
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = -3, ymax = 0),
+            fill = "dodgerblue2", alpha = 0.2) +
+  geom_rect(aes(xmin = 2011, xmax = 2025, ymin = 0, ymax = 1),
+            fill = "forestgreen", alpha = 0.2) +
+  geom_point() + geom_smooth(method = "lm", se = F, color = 'gold') +
+  facet_wrap(~HGM_Class)
 
 # Coef of Wetness
 # -5 Obligate wetland
@@ -92,10 +115,11 @@ vmmimod2 <- lmer(vmmi ~ year_cen + (1 + year_cen|Code) + (1|year_fac), data = vm
 vmmimod1 <- lmer(vmmi ~ 1 + (1 + year_cen|Code) + (1|year_fac), data = vmmi_ram)
 
 AIC(vmmimod1, vmmimod3, vmmimod2, vmmimod_full)
-
 plot(vmmimod3)
 qqnorm(residuals(vmmimod3))
+hist(residuals(vmmimod3))
 summary(vmmimod3)
+tidy(vmmimod3)
 
 # Mean C trends
 meancmod_full <- lmer(meanC ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
@@ -106,6 +130,7 @@ meancmod1 <- lmer(meanC ~ 1 + (1 + year_cen|Code), data = vmmi_ram)
 AIC(meancmod1, meancmod3, meancmod2, meancmod_full)
 plot(meancmod3)
 qqnorm(residuals(meancmod3))
+hist(residuals(meancmod3))
 summary(meancmod3)
 
 # % Bryophyte Trends
@@ -118,8 +143,10 @@ bryomod1 <- lmer(Bryophyte_Cover ~ 1 + (1|Code), data = vmmi_ram)
 anova(bryomod_full, bryomod3, bryomod2, bryomod1)
 AIC(bryomod1, bryomod3, bryomod2, bryomod_full)
 plot(bryomod3)
-qqnorm(residuals(bryomod3))
+qqnorm(residuals(bryomod3)) # a bit funky in the tails
+hist(residuals(bryomod3)) # potentially leptokurtic - heavier tails, but not terrible
 summary(bryomod3)
+tidy(bryomod3)
 
 # % Tolerant Trends
 tolmod_full <- lmer(Cover_Tolerant ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
@@ -131,18 +158,48 @@ anova(tolmod_full, tolmod3, tolmod2, tolmod1)
 AIC(tolmod1, tolmod3, tolmod2, tolmod_full)
 plot(tolmod3)
 qqnorm(residuals(tolmod3))
+hist(residuals(tolmod3))
 summary(tolmod3)
+tidy(tolmod3)
 
 # Coef of Wetness Trends
-# +++++ ENDED HERE +++++
-tolmod_full <- lmer(Cover_Tolerant ~ year_cen + HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
-tolmod3 <- lmer(Cover_Tolerant ~ HGM_Class + (1 + year_cen|Code), data = vmmi_ram)
-tolmod2 <- lmer(Cover_Tolerant ~ year_cen + (1 + year_cen|Code), data = vmmi_ram)
-tolmod1 <- lmer(Cover_Tolerant ~ 1 + (1 + year_cen|Code), data = vmmi_ram)
+wetmod_full <- lmer(mean_wet ~ year_cen + HGM_Class + (1|Code), data = vmmi_ram)
+wetmod3 <- lmer(mean_wet ~ HGM_Class + (1|Code), data = vmmi_ram)
+wetmod2 <- lmer(mean_wet ~ year_cen + (1|Code), data = vmmi_ram)
+wetmod1 <- lmer(mean_wet ~ 1 + (1|Code), data = vmmi_ram)
 
-anova(tolmod_full, tolmod3, tolmod2, tolmod1)
-AIC(tolmod1, tolmod3, tolmod2, tolmod_full)
-plot(tolmod3)
-qqnorm(residuals(tolmod3))
-summary(tolmod3)
+anova(wetmod_full, wetmod3, wetmod2, wetmod1)
+AIC(wetmod1, wetmod3, wetmod2, wetmod_full)
+plot(wetmod3)
+qqnorm(residuals(wetmod3))
+hist(residuals(wetmod3))
+summary(wetmod3)
+tidy(wetmod3)
 
+table(vmmi_ram$HGM_Class) # depression is the intercept
+
+# Plot results
+vmmi_newdat <- vmmi_ram |> select(Code, Year, meanC:vmmi_rating, mean_wet, HGM_Class, year_cen)
+vmmi_pred <- cbind(vmmi_newdat,
+                   pred_vmmi = predict(vmmimod3, newdata = vmmi_ram),
+                   pred_meanC = predict(meancmod3, newdata = vmmi_ram),
+                   pred_tol = predict(tolmod3, newdata = vmmi_ram),
+                   pred_wet = predict(vmmimod3, newdata = vmmi_ram)
+                   )
+head(vmmi_pred)
+
+ggplot(vmmi_pred, aes(x = Year, y = meanC, group = Code,
+                      fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
+  theme_wet() +
+  geom_point() +
+  geom_line() +
+  scale_color_manual(values = c("Depression" = "",
+                                "Flats" = "",
+                                "Riverine" = "",
+                                "Slope" = ""
+                                ), name = "HGM Class")
+
+
+pred_plot <- function(mod, param){
+
+}
