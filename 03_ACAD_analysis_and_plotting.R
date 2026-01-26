@@ -192,12 +192,17 @@ ggplot(vmmi_pred, aes(x = Year, y = meanC, group = Code,
                       fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
   theme_wet() +
   geom_point() +
-  geom_line() +
-  scale_color_manual(values = c("Depression" = "",
-                                "Flats" = "",
-                                "Riverine" = "",
-                                "Slope" = ""
-                                ), name = "HGM Class")
+  geom_line(alpha = 0.4) +
+  scale_color_manual(values = c("Depression" = "#e63946",
+                                "Flats" = "#ffc300",
+                                "Riverine" = "#4cc9f0",
+                                "Slope" = "#4347E8"),
+                     name = "HGM Class", aesthetics = c("fill", "color")) +
+  scale_shape_manual(values = c("Depression" = 21,
+                                "Flats" = 22,
+                                "Riverine" = 24,
+                                "Slope" = 25),
+    name = "HGM Class")
 
 
 pred_plot <- function(mod, param){
