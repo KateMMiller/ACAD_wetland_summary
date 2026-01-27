@@ -1,7 +1,6 @@
 #-------------------------------------------------------------------
 # Compiling RAM data for freshwater wetland trend analysis in ACAD
 #-------------------------------------------------------------------
-
 library(tidyverse)
 library(wetlandACAD)
 library(lme4)
@@ -16,6 +15,16 @@ loc <- VIEWS_RAM$locations
 vmmi <- left_join(vmmi1,
                   loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
                   by = "Code") |>
+  select(Code, Panel, X = xCoordinate, Y = yCoordinate, Year, meanC, Bryophyte_Cover,
+         Invasive_Cover, Cover_Tolerant, vmmi, vmmi_rating, vmmi_rating_orig, FWS_Class_Code, HGM_Class)
+
+# Great Meadow data
+loc_grme <- read.csv("./data/grme/locations.csv") |> select(Code, FWS_Class_Code, HGM_Class)
+vmmi_grme1 <- read.csv("./data/grme/ACAD_Wetland_VegMMI_20260126.csv")
+
+vmmi_grme <- left_join(vmmi_grme1,
+                       loc_grme |> select(Code, FWS_Class_Code, HGM_Class),
+                       by = "Code") |>
   select(Code, Panel, X = xCoordinate, Y = yCoordinate, Year, meanC, Bryophyte_Cover,
          Invasive_Cover, Cover_Tolerant, vmmi, vmmi_rating, vmmi_rating_orig, FWS_Class_Code, HGM_Class)
 
@@ -48,7 +57,7 @@ vmmi_sent3 <- vmmi_sent2 |>
          vmmi_rating_orig, FWS_Class_Code = WETCLS_EVL, HGM_Class)
 
 # combine sites
-vmmi_comb <- rbind(vmmi, vmmi_sent3)
+vmmi_comb <- rbind(vmmi, vmmi_grme, vmmi_sent3)
 
 # Check that COCs match between NETN and EPA analyses
 # Only interested in species that have been found in ACAD.
@@ -77,7 +86,7 @@ spplist_check <- left_join(spplist, epaspp, by = c("PLANTS_Code" = "SYMBOL")) |>
 spplist_check # no species differences in COCs between NETN database and EPA CoC list
 
 write.csv(vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv", row.names = F)
-write.csv(vmmi_comb, "./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT.csv", row.names = F)
+write.csv(vmmi_comb, "./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv", row.names = F)
 
 head(ramspp)
 
@@ -88,6 +97,12 @@ spp_ram <- left_join(VIEWS_RAM$species_list,
                      by = "TSN")
 
 cow_ram <- spp_ram |> group_by(Code, Year) |>
+  summarize(mean_wet = mean(Coef_wetness, na.rm = T),
+            .groups = "drop")
+
+# Great Meadow
+cow_grme <- read.csv("./data/grme/ACAD_Wetland_Species_List_20260126.csv") |>
+  group_by(Code, Year) |>
   summarize(mean_wet = mean(Coef_wetness, na.rm = T),
             .groups = "drop")
 
@@ -113,11 +128,11 @@ cow_sent <- spp_sent2 |> group_by(Code, Year = YEAR) |>
   summarize(mean_wet = mean(COW, na.rm = T),
             .groups = 'drop')
 
-cow_comb <- rbind(cow_ram, cow_sent)
+cow_comb <- rbind(cow_ram, cow_grme, cow_sent)
 
 vmmi_cow_comb <- left_join(vmmi_comb, cow_comb, by = c("Code", "Year"))
 
-write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT.csv", row.names = F)
+write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.csv", row.names = F)
 
 #+++++ ENDED HERE +++++
 # Stressors

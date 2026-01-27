@@ -2,10 +2,11 @@ library(tidyverse)
 library(lme4)
 library(broom.mixed)
 
-vmmi_comb <- read.csv("./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT.csv") |>
+vmmi_comb <- read.csv("./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.csv") |>
   mutate(site_type = ifelse(Panel == 0, "SENT", "RAM"))
 
 vmmi_ram <- vmmi_comb |> filter(grepl("R-", Code))
+vmmi_grme <- vmmi_comb |> filter(grepl("GR", Code))
 
 thresh <- c(41.48136, 60.94853)
 

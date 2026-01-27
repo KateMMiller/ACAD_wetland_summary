@@ -13,36 +13,41 @@ theme_wet <- function(){
 }
 
 
-acad_ref <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_REF.csv") |>
-  select(SITE_ID, YEAR, vmmi, vmmi_rating) |>
-  mutate(site_type = "ACAD Sent.")
+vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv") |>
+  mutate(site_type = case_when(grepl("R-", Code) ~ "ACAD RAM",
+                               grepl("GRME0|GRME10", Code) ~ "ACAD GRME",
+                               Code %in% c("BIGH", "DUCK", "FRAZ", "GILM", "GRME", "HEBR",
+                                           "HODG", "LITH", "NEMI", "WMTN") ~ "ACAD Sent.",
+                               grepl("GIME", Code) ~ "ACAD GILM",
+                               TRUE ~ "UNK"
+         )) |>
+  select(Code, Year, vmmi, vmmi_rating, site_type)
 
-head(acad_ref)
+head(vmmi_acad)
 
 nwca_prob1 <- read.csv("./results/Vegetation_MMI_2011-2021_EPA_PROB.csv")
 
 table(nwca_prob1$US_L3CODE)
 
 nwca_prob <- nwca_prob1 |>
-  select(SITE_ID, YEAR, vmmi, vmmi_rating) |>
+  select(Code = SITE_ID, Year = YEAR, vmmi, vmmi_rating) |>
   mutate(site_type = "EPA Prob.")
 
 nwca_ref <- read.csv('./results/Vegetation_MMI_2011-2021_EPA_allsites.csv') |>
   filter(site_type_fac == "REF") |>
-  select(SITE_ID, YEAR, vmmi, vmmi_rating) |>
+  select(Code = SITE_ID, Year = YEAR, vmmi, vmmi_rating) |>
   mutate(site_type = "EPA Ref.") # ACAD Sent. not included
 
-acad_ram <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv") |>
-  select(SITE_ID = Code, YEAR = Year, vmmi, vmmi_rating) |>
-  mutate(site_type = "ACAD RAM")
 
-vmmi_comb <- rbind(nwca_ref, nwca_prob, acad_ref, acad_ram)
+vmmi_comb <- rbind(vmmi_acad, nwca_prob, nwca_ref)
 
 vmmi_comb$site_type_fac <- factor(vmmi_comb$site_type,
-                                  levels = c("EPA Ref.", "EPA Prob.", "ACAD Sent.", "ACAD RAM"))
+                                  levels = c("EPA Ref.", "EPA Prob.", "ACAD Sent.", "ACAD RAM",
+                                             "ACAD GRME", "ACAD GILM"))
 
 # Add great meadow sites here, after updating the thresholds for ratings.
-ggplot(vmmi_comb, aes(x = site_type_fac, y = vmmi)) +
+ggplot(vmmi_comb |> filter(site_type != "ACAD GILM") |> droplevels(),
+       aes(x = site_type_fac, y = vmmi)) +
   geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
   labs(x = "Site Disturbance Type", y = "Veg. MMI") +
