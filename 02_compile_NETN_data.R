@@ -135,6 +135,7 @@ vmmi_cow_comb <- left_join(vmmi_comb, cow_comb, by = c("Code", "Year")) |>
                                            "HODG", "LITH", "NEMI", "WMTN") ~ "ACAD Sent.",
                                grepl("GIME", Code) ~ "ACAD GILM",
                                TRUE ~ "UNK"))
+head(vmmi_cow_comb)
 
 write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.csv", row.names = F)
 vmmi_sf <- st_as_sf(vmmi_cow_comb, coords = c("X", "Y"), crs = 26919)

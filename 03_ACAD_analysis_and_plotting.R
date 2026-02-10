@@ -181,6 +181,7 @@ table(vmmi_ram$HGM_Class) # depression is the intercept
 
 # Plot results
 vmmi_newdat <- vmmi_ram |> select(Code, Year, meanC:vmmi_rating, mean_wet, HGM_Class, year_cen)
+
 vmmi_pred <- cbind(vmmi_newdat,
                    pred_vmmi = predict(vmmimod3, newdata = vmmi_ram),
                    pred_meanC = predict(meancmod3, newdata = vmmi_ram),
@@ -189,23 +190,60 @@ vmmi_pred <- cbind(vmmi_newdat,
                    )
 head(vmmi_pred)
 
-ggplot(vmmi_pred, aes(x = Year, y = meanC, group = Code,
+vmmi_est <- data.frame(tidy(vmmimod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
+  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         resp = "vmmi")
+
+meanC_est <- data.frame(tidy(meancmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
+  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         resp = "meanC")
+
+
+tol_est <- data.frame(tidy(tolmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
+  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         resp = "disttol")
+
+wet_est <- data.frame(tidy(wetmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
+  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         resp = "wet")
+
+params <- rbind(vmmi_est, meanC_est, tol_est, wet_est)
+
+
+ggplot(vmmi_pred, aes(x = Year, y = pred_meanC, group = Code,
                       fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
   theme_wet() +
   geom_point() +
   geom_line(alpha = 0.4) +
-  scale_color_manual(values = c("Depression" = "#e63946",
-                                "Flats" = "#ffc300",
-                                "Riverine" = "#4cc9f0",
-                                "Slope" = "#4347E8"),
+  scale_color_manual(values = c("Depression" = "#70D8CF",
+                                "Flats" = "#994F00",
+                                "Riverine" = "#053AC3",
+                                "Slope" = "#FFBF30"),
                      name = "HGM Class", aesthetics = c("fill", "color")) +
   scale_shape_manual(values = c("Depression" = 21,
                                 "Flats" = 22,
                                 "Riverine" = 24,
                                 "Slope" = 25),
-    name = "HGM Class")
+    name = "HGM Class") +
+  facet_wrap(~HGM_Class)
 
+head(params)
 
 pred_plot <- function(mod, param){
-
+ ggplot(vmmi_pred, aes(x = Year, y = !!param, group = Code,
+                       fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
+    theme_wet() +
+    geom_point() +
+    geom_line(alpha = 0.4) +
+    scale_color_manual(values = c("Depression" = "#70D8CF",
+                                  "Flats" = "#994F00",
+                                  "Riverine" = "#053AC3",
+                                  "Slope" = "#FFBF30"),
+                       name = "HGM Class", aesthetics = c("fill", "color")) +
+    scale_shape_manual(values = c("Depression" = 21,
+                                  "Flats" = 22,
+                                  "Riverine" = 24,
+                                  "Slope" = 25),
+                       name = "HGM Class") +
+    facet_wrap(~HGM_Class)
 }
