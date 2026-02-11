@@ -190,37 +190,22 @@ stress_bind <- stress1 |> filter(!(Stressor %in% c("Grazing by native ungulates"
 # Simplify roads to paved, gravel, vs trail. by buffer vs AA.
 roads <- stress_bind |> filter(grepl("road|Road", Stressor))
 
-
 stress_pre <- rbind(stress_bind, visits_inv, browse)
 
+# turn stressor into binary
 stress <- left_join(locev,
                     stress_pre,
-                    by = c("Code", "Year"))
+                    by = c("Code", "Year")) |>
+mutate(stress = ifelse(!is.na(Severity_Indiv), 1, 0))
 
-#+++ ENDED HERE +++
-# I don't remember what I was planning to do. Need to inspect stressors in more detail.
+table(stress$Severity_Indiv, stress$stress, useNA = 'always')
 
-table(stress$Stressor_Category, stress$Stressor)
-table(stress$Stressor_Category)
-head(stress)
-table(stress$Location_Level, stress$Stressor_Category)
+stress_wide <- stress |> group_by(Code, HGM_Class, Year, Location_Level) |>
+  summarize(num_stressors = sum(stress),
+            .groups = 'drop') |>
+  pivot_wider(names_from = Location_Level, values_from = num_stressors, values_fill = 0) |>
+  select(Code, HGM_Class, Year, AA, BUFF = BZ) |>
+  mutate(site_type = "ACAD RAM")
 
-# Stressors to drop
-drop_stress <- c("Shrub layer browsed",  # in buffer zone, not consistently used and hard to assess
+head(stress_wide)
 
-                 )
-table(stress$Location_Level, stress$stress_cat_simp)
-
-# Browse stressors
-# "Excessive Grazing or Herbivory" # in Excessive Grazing or Herbivory usually to plants
-# "Grazing by native ungulates" # in Stressors to substrate (usually means deer trails)
-
-browse <- stress |> filter(grepl("wildlife herbivory|native ungulates", Stressor))
-table(browse$Code, browse$Stressor)
-
-# Going to combine the two grazing stressors, as I'm not sure they're used consistently
-# to distinguish from different things.
-
-
-# Analysis thoughts
-#--- Try to model vmmi and individual metrics using stressors as predictors?
