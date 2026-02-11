@@ -498,7 +498,7 @@ buff21_long <- buff21 |> pivot_longer(cols = c(SOILHD_IMPERVIOUS_SURFACE:WOBSTR_
                             PLOT == 2 ~ 0.44,
                             PLOT == 3 ~ 0.23
   ),
-  stress = ifelse(Present == "Y", 1, 0))   # weight buffer plot by distance to the center
+  stress = ifelse(Present %in% c("L", "M", "H", "Y"), 1, 0))   # weight buffer plot by distance to the center
 
 buff21_long$YEAR <- format(as.Date(buff21_long$DATE_COL, format = "%d-%b-%y"), format = "%Y")
 table(buff21_long$YEAR[is.na(buff21_long$YEAR)],
@@ -530,7 +530,7 @@ head(buff_comb)
 table(buff_comb$SITETYPE, buff_comb$dist, buff_comb$Year)
 # 2011 - MIN: 32 HAND, 26 PROB
 # 2016 - MIN: 32 HAND, 32 PROB
-# 2021 - MIN: 13 HAND, 15 PROB
+# 2021 - MIN: 13 HAND, 16 PROB
 
 # Take the earliest sampling of each reference site for the threshold calculation.
 # Using the earliest sampling because we have the most data earlier than later,
@@ -544,6 +544,7 @@ buff_ref <- buff_comb |> filter(SITETYPE == "HAND") |> filter(dist == "MIN") |>
   filter(!UID %in% c(207585, 206737, 207752)) #drop ACAD sentinel sites added in 2016
 
 head(buff_ref) # 62 observations
+nrow(buff_ref)
 ref_uids <- sort(unique(buff_ref$UID))
 
 write.csv(buff_ref, "./data/comb_data/Reference_sites_2011-2021.csv", row.names = F)
@@ -688,3 +689,41 @@ write.csv(plot_vmmi |> filter(!UID %in% acad_uids),
           "./results/Vegetation_MMI_2011-2021_EPA_allsites.csv", row.names = F)
 write.csv(plot_vmmi |> filter(!UID %in% acad_uids) |> filter(SITETYPE == "PROB"),
           "./results/Vegetation_MMI_2011-2021_EPA_PROB.csv", row.names = F)
+
+# Stressors in 2021
+buff21_longb <- buff21 |> pivot_longer(cols = c(SOILHD_IMPERVIOUS_SURFACE:WOBSTR_WALL_RIPRAP),
+                                      names_to = "Stressor", values_to = "Present") |>
+  filter(!(LOCATION %in% c("N", "E", "S", "W") & PLOT == 0)) |> # these rows are not part of stressor checklist
+  mutate(stress = ifelse(Present %in% c("Y", "L", "M", "H"), 1, 0),
+         loc = ifelse(LOCATION == "AA", "AA", "BUFF"))   # weight buffer plot by distance to the center
+
+buff21_longb$YEAR <- format(as.Date(buff21_longb$DATE_COL, format = "%d-%b-%y"), format = "%Y")
+table(buff21_longb$YEAR[is.na(buff21_longb$YEAR)],
+      buff21_longb$DATE_COL[is.na(buff21_longb$YEAR)], useNA = "always") # all the missing years are from 2021 b/c diff format
+buff21_longb$YEAR[is.na(buff21_longb$YEAR)] <- 2021
+
+# The same stressor can be recorded in different buffer plots, so have to simplify to P/A first
+buff21_sum1b <- buff21_longb |> group_by(UID, SITE_ID, loc, YEAR, Stressor) |>
+  summarize(stress2 = sum(stress),
+            stress_pa = ifelse(stress2 > 0, 1, 0),
+            .groups = "drop")
+
+# Sum the number of unique stressors per site and location type (AA or BUFF)
+buff21_sum1c <- buff21_sum1b |> group_by(UID, SITE_ID, loc, YEAR) |>
+  summarize(num_stressors = sum(stress_pa),
+            .groups = "drop")
+
+buff21_wide <- buff21_sum1c |> pivot_wider(names_from = loc, values_from = num_stressors)
+buff21_wide$YEAR <- as.numeric(buff21_wide$YEAR)
+
+# buff16_sum ready to bind with future data
+table(buff21_wide$AA)
+table(buff21_wide$BUFF)
+head(buff21_wide)
+
+# Connect with site type
+head(site21)
+buff21_site <- right_join(site21 |> select(UID, SITE_ID, YEAR, SITETYPE),
+                          buff21_wide, by = c("UID", "SITE_ID", "YEAR"))
+
+write.csv(buff21_site, "./results/Stressor_Counts_2021_NWCA.csv", row.names = F)
