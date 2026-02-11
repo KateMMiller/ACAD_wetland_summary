@@ -23,15 +23,20 @@ vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv
          )) |>
   select(Code, Year, vmmi, vmmi_rating, site_type)
 
-head(vmmi_acad)
+vmmi_grme <- vmmi_acad |> filter(site_type == "ACAD GRME") |> filter(Year == 2025)
+
+head(vmmi_grme)
 
 nwca_prob1 <- read.csv("./results/Vegetation_MMI_2011-2021_EPA_PROB.csv")
 
 table(nwca_prob1$US_L3CODE)
 
 nwca_prob <- nwca_prob1 |>
+  filter(YEAR %in% c(2021, 2022)) |>
   select(Code = SITE_ID, Year = YEAR, vmmi, vmmi_rating) |>
   mutate(site_type = "EPA Prob.")
+
+table(nwca_prob$Year)
 
 nwca_ref <- read.csv('./results/Vegetation_MMI_2011-2021_EPA_allsites.csv') |>
   filter(site_type_fac == "REF") |>
@@ -39,14 +44,15 @@ nwca_ref <- read.csv('./results/Vegetation_MMI_2011-2021_EPA_allsites.csv') |>
   mutate(site_type = "EPA Ref.") # ACAD Sent. not included
 
 
-vmmi_comb <- rbind(vmmi_acad, nwca_prob, nwca_ref)
+vmmi_comb <- rbind(vmmi_acad |> filter(site_type %in% c("ACAD RAM", "ACAD Sent.")),
+                   vmmi_grme, nwca_prob, nwca_ref)
 
 vmmi_comb$site_type_fac <- factor(vmmi_comb$site_type,
                                   levels = c("EPA Ref.", "EPA Prob.", "ACAD Sent.", "ACAD RAM",
-                                             "ACAD GRME", "ACAD GILM"))
+                                             "ACAD GRME"))#, "ACAD GILM"))
 
 # Add great meadow sites here, after updating the thresholds for ratings.
-ggplot(vmmi_comb |> filter(site_type != "ACAD GILM") |> droplevels(),
+ggplot(vmmi_comb,
        aes(x = site_type_fac, y = vmmi)) +
   geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
