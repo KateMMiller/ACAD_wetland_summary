@@ -232,7 +232,7 @@ pred_plot <- function(param, ylabel, yran = NA){
   ggplot(vmmi_pred, aes(x = Year, y = .data[[param]],
                         fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
     theme_wet() +
-    geom_point(aes(group = Code)) +
+    geom_point(aes(group = Code), alpha = 0.5) +
     geom_line(aes(group = Code), alpha = 0.4) +
     scale_y_continuous(limits = yrange) +
     scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
@@ -251,13 +251,21 @@ pred_plot <- function(param, ylabel, yran = NA){
                     group = HGM_Class),
                 lwd = 0.75, linetype = 'dashed') +
     labs(y = ylabel, x = NULL) +
+    guides(color = guide_legend(override.aes = list(alpha = 1))) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
 }
 
 pred_plot("meanC", "Mean C") + facet_wrap(~HGM_Class)
 
-pred_plot("vmmi", "Veg. MMI", yran = c(0, 100)) + facet_wrap(~HGM_Class)
+pred_plot("vmmi", "Veg. MMI", yran = c(0, 100)) + facet_wrap(~HGM_Class) #+
+  #geom_hline(yintercept = thresh[1]) +
+  #geom_hline(yintercept = thresh[2])
+
+ggsave("./results/Vegetation_MMI_RAM_facet.png", height = 4, width = 6)
+
 pred_plot("mean_wet", "Mean Wetness") + facet_wrap(~HGM_Class)
+ggsave("./results/mean_wetness_RAM_facet.png", height = 4, width = 6)
 
 
 pred_plot2 <- function(param, ylabel, yran = NA){
@@ -275,9 +283,9 @@ pred_plot2 <- function(param, ylabel, yran = NA){
     geom_point(aes(group = Code), alpha = 0.4) +
     scale_y_continuous(limits = yrange) +
     scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
-    scale_color_manual(values = c("Depression" = "#5EC962", #"#70D8CF",
-                                  "Flats" = "#994455",
-                                  "Riverine" = "#3B528B",
+    scale_color_manual(values = c("Depression" = "#70D8CF",#"#5EC962",
+                                  "Flats" = "#994F00", #"#994455",
+                                  "Riverine" = "#053ac3", #"#3B528B",
                                   "Slope" = "#FFBF30"),
                        name = NULL, aesthetics = c("fill", "color")
                        ) +
@@ -303,7 +311,9 @@ pred_plot2 <- function(param, ylabel, yran = NA){
 }
 
 pred_plot2("vmmi", "Veg. MMI", yran = c(0, 100))
+ggsave("./results/Vegetation_MMI_RAM.png", height = 4, width = 6)
 pred_plot2("mean_wet", "Mean Wetness")
+ggsave("./results/mean_wetness_RAM.png", height = 4, width = 6)
 pred_plot2("meanC", "Mean C", yran = c(2.5, 6.5))
 pred_plot2("Invasive_Cover", "% Inv. Cov", yran = c(0, 2))
 pred_plot2("Bryophyte_Cover", "% Bryo. Cov")
