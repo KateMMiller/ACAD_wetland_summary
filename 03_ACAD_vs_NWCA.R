@@ -24,8 +24,8 @@ vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv
   select(Code, Year, vmmi, vmmi_rating, site_type)
 
 vmmi_grme <- vmmi_acad |> filter(site_type == "ACAD GRME") |> filter(Year == 2025)
-
-head(vmmi_grme)
+vmmi_sent <- vmmi_acad |> filter(site_type == "ACAD Sent.") |> filter(Year == 2021)
+vmmi_ram <- vmmi_acad |> filter(site_type == "ACAD RAM") |> filter(Year > 2021)
 
 nwca_prob1 <- read.csv("./results/Vegetation_MMI_2011-2021_EPA_PROB.csv")
 
@@ -44,7 +44,7 @@ nwca_ref <- read.csv('./results/Vegetation_MMI_2011-2021_EPA_allsites.csv') |>
   mutate(site_type = "EPA Ref.") # ACAD Sent. not included
 
 
-vmmi_comb <- rbind(vmmi_acad |> filter(site_type %in% c("ACAD RAM", "ACAD Sent.")),
+vmmi_comb <- rbind(vmmi_ram, vmmi_sent,
                    vmmi_grme, nwca_prob, nwca_ref)
 
 vmmi_comb$site_type_fac <- factor(vmmi_comb$site_type,
