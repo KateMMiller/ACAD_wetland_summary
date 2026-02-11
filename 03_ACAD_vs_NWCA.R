@@ -56,10 +56,29 @@ ggplot(vmmi_comb,
        aes(x = site_type_fac, y = vmmi)) +
   geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
-  labs(x = "Site Disturbance Type", y = "Veg. MMI") +
+  labs(x = "Site Disturbance Type", y = "Vegetation MMI") +
   geom_hline(yintercept = thresh[1], linewidth = 0.5, color = "#696969",
              linetype = 'dashed') +
-  geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969") +
-  labs(y = "Vegetation MMI", x = NULL)
+  geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969")
 
 ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 4, width = 6)
+
+# Plot stressors
+#++++ ENDED HERE +++++
+#+ Add REF data into this, if I can
+stress_all <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent.csv")
+
+stress_all$site_type_fac <- factor(stress_all$site_type,
+                                  levels = c("EPA Prob.", "ACAD Sent.", "ACAD RAM",
+                                             "ACAD GRME"))#, "ACAD GILM"))
+head(stress_all)
+
+stress_long <- stress_all |> pivot_longer(cols = c(AA, BUFF), names_to = "loc", values_to = "num_stress")
+
+ggplot(stress_long, aes(x = site_type_fac, y = num_stress)) +
+  geom_boxplot() + theme_wet() +
+  geom_jitter(alpha = 0.2) +
+  labs(x = "Site Disturbance Type", y = "# Stressors") +
+  facet_wrap(~loc)
+
+ggsave("./results/Stressor_boxplots.png", width = 8, height = 4)

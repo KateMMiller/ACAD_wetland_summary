@@ -141,13 +141,26 @@ write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_G
 vmmi_sf <- st_as_sf(vmmi_cow_comb, coords = c("X", "Y"), crs = 26919)
 st_write(vmmi_sf, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.shp")
 
-
-#+++++ ENDED HERE +++++
-# Stressors
-locev <- left_join(VIEWS_RAM$locations |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
-                   VIEWS_RAM$visits |> select(Code, Year, Visit_Type, Buffer_Width_Avg, Buffer_Perim_Percent),
+# Compile Stressors
+locev1 <- left_join(VIEWS_RAM$locations |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
+                   VIEWS_RAM$visits |> select(Code, Year, Visit_Type),
                    by = "Code") |>
   filter(Visit_Type == "VS")
+
+grme_loc <- read.csv("./data/grme/FOA_veg_data_package_2025/locations.csv") |>
+  filter(grepl("GRME", Code))
+
+grme_visits <- read.csv("./data/grme/FOA_veg_data_package_2025/visits_2015_2025.csv") |>
+  filter(grepl("GRME", Code)) |> filter(Year == 2025)
+
+grme_stress <- read.csv("./data/grme/FOA_veg_data_package_2025/RAM_stressors_2015_2025.csv") |>
+  filter(grepl("GRME", Code)) |> filter(Year == 2025)
+
+locev_gm <- left_join(grme_loc |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
+                      grme_visits |> select(Code, Year, Visit_Type),
+                      by = "Code")
+
+locev <- rbind(locev1, locev_gm)
 
 # Need to adjust stressors a bit based on how we use them.
 # -- 1. Use presence of invasives from visits for invasive stressor in AA and
@@ -155,7 +168,9 @@ locev <- left_join(VIEWS_RAM$locations |> select(Code, FWS_Class_Code, HGM_Class
 # -- 2. Clean up deer impacts. There are 2 places they show up and we haven't
 #       been consistent on when we use either or across years.
 
-visits_inv <- VIEWS_RAM$visits |>
+visits <- rbind(VIEWS_RAM$visits, grme_visits)
+
+visits_inv <- visits |>
   filter(Visit_Type == "VS") |>
   filter(Invasive_Cover > 0) |>
   mutate(Location_Level = "AA",
@@ -166,7 +181,9 @@ visits_inv <- VIEWS_RAM$visits |>
                                     TRUE ~ 3)) |>
   select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv)
 
-stress1 <- VIEWS_RAM$RAM_stressors |>
+stress_comb <- rbind(VIEWS_RAM$RAM_stressors, grme_stress)
+
+stress1 <- stress_comb |>
   filter(Visit_Type == "VS") |>
   select(Code, Year, Location_Level, Stressor_Category, Stressor, Severity_Indiv) |>
   filter(!(Location_Level == "BZ" & Stressor == "Cover of non-native or invasive species"))
@@ -200,12 +217,28 @@ mutate(stress = ifelse(!is.na(Severity_Indiv), 1, 0))
 
 table(stress$Severity_Indiv, stress$stress, useNA = 'always')
 
-stress_wide <- stress |> group_by(Code, HGM_Class, Year, Location_Level) |>
+stress_wide1 <- stress |> group_by(Code, HGM_Class, Year, Location_Level) |>
   summarize(num_stressors = sum(stress),
             .groups = 'drop') |>
   pivot_wider(names_from = Location_Level, values_from = num_stressors, values_fill = 0) |>
   select(Code, HGM_Class, Year, AA, BUFF = BZ) |>
-  mutate(site_type = "ACAD RAM")
+  mutate(site_type = ifelse(grepl("GRME", Code), "ACAD GRME", "ACAD RAM")) |>
+  filter(Year > 2021) # most recent NETN survey
 
-head(stress_wide)
+stress_wide <- stress_wide1 |> select(Code, Year, site_type, AA, BUFF)
+# NETN data ready to combine with EPA
+
+# Bring in EPA data
+buff21 <- read.csv("./results/Stressor_Counts_2021_NWCA.csv") |>
+  select(Code = SITE_ID, Year = YEAR, site_type = SITETYPE, AA, BUFF) |>
+  mutate(Year = as.numeric(Year))
+sent21 <- buff21 |> filter(grepl("ME-HP", Code)) |>
+  mutate(site_type = "ACAD Sent.")
+prob21 <- buff21 |> filter(site_type == "PROB") |>
+  mutate(site_type = "EPA Prob.")
+
+stress_all <- rbind(stress_wide, sent21, prob21)
+head(stress_all)
+
+write.csv(stress_all, "./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent.csv", row.names = F)
 
