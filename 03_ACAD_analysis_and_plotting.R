@@ -191,59 +191,121 @@ vmmi_pred <- cbind(vmmi_newdat,
 head(vmmi_pred)
 
 vmmi_est <- data.frame(tidy(vmmimod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
-  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+  mutate(HGM_Class = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         add = ifelse(HGM_Class == "Depression", 0, .data$estimate[.data$HGM_Class == "Depression"]),
+         intercept = ifelse(HGM_Class == "Depression", estimate, estimate + add),
          resp = "vmmi")
 
 meanC_est <- data.frame(tidy(meancmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
-  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+  mutate(HGM_Class = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         add = ifelse(HGM_Class == "Depression", 0, .data$estimate[.data$HGM_Class == "Depression"]),
+         intercept = ifelse(HGM_Class == "Depression", estimate, estimate + add),
          resp = "meanC")
 
-
 tol_est <- data.frame(tidy(tolmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
-  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
-         resp = "disttol")
+  mutate(HGM_Class = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         add = ifelse(HGM_Class == "Depression", 0, .data$estimate[.data$HGM_Class == "Depression"]),
+         intercept = ifelse(HGM_Class == "Depression", estimate, estimate + add),
+         resp = "Cover_Tolerant")
+
+bryo_est <- data.frame(tidy(bryomod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
+  mutate(HGM_Class = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         add = ifelse(HGM_Class == "Depression", 0, .data$estimate[.data$HGM_Class == "Depression"]),
+         intercept = ifelse(HGM_Class == "Depression", estimate, estimate + add),
+         resp = "Bryophyte_Cover")
 
 wet_est <- data.frame(tidy(wetmod3) |> filter(effect == "fixed")) |> select(term, estimate, std.error) |>
-  mutate(param = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
-         resp = "wet")
+  mutate(HGM_Class = ifelse(grepl("HGM_Class", term), gsub("HGM_Class", "", term), "Depression"),
+         add = ifelse(HGM_Class == "Depression", 0, .data$estimate[.data$HGM_Class == "Depression"]),
+         intercept = ifelse(HGM_Class == "Depression", estimate, estimate + add),
+         resp = "mean_wet")
 
-params <- rbind(vmmi_est, meanC_est, tol_est, wet_est)
+params <- rbind(vmmi_est, meanC_est, tol_est, bryo_est, wet_est)
 
+pred_plot <- function(param, ylabel, yran = NA){
+  ints <- params |> filter(resp == param)
+  yrange <-
+    if(any(is.na(yran))){
+      c(floor(min(vmmi_pred[,param])), ceiling(max(vmmi_pred[,param])))
+    } else {yran}
 
-ggplot(vmmi_pred, aes(x = Year, y = pred_meanC, group = Code,
-                      fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
-  theme_wet() +
-  geom_point() +
-  geom_line(alpha = 0.4) +
-  scale_color_manual(values = c("Depression" = "#70D8CF",
-                                "Flats" = "#994F00",
-                                "Riverine" = "#053AC3",
-                                "Slope" = "#FFBF30"),
-                     name = "HGM Class", aesthetics = c("fill", "color")) +
-  scale_shape_manual(values = c("Depression" = 21,
-                                "Flats" = 22,
-                                "Riverine" = 24,
-                                "Slope" = 25),
-    name = "HGM Class") +
-  facet_wrap(~HGM_Class)
-
-head(params)
-
-pred_plot <- function(mod, param){
- ggplot(vmmi_pred, aes(x = Year, y = !!param, group = Code,
-                       fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
+  ggplot(vmmi_pred, aes(x = Year, y = .data[[param]],
+                        fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
     theme_wet() +
-    geom_point() +
-    geom_line(alpha = 0.4) +
+    geom_point(aes(group = Code)) +
+    geom_line(aes(group = Code), alpha = 0.4) +
+    scale_y_continuous(limits = yrange) +
+    scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
     scale_color_manual(values = c("Depression" = "#70D8CF",
                                   "Flats" = "#994F00",
                                   "Riverine" = "#053AC3",
                                   "Slope" = "#FFBF30"),
-                       name = "HGM Class", aesthetics = c("fill", "color")) +
+                       name = NULL, aesthetics = c("fill", "color")) +
     scale_shape_manual(values = c("Depression" = 21,
                                   "Flats" = 22,
                                   "Riverine" = 24,
                                   "Slope" = 25),
-                       name = "HGM Class") +
-    facet_wrap(~HGM_Class)
+                       name = NULL) +
+    geom_abline(data = ints,
+                aes(intercept = intercept, slope = rep(0, 4),
+                    group = HGM_Class),
+                lwd = 0.75, linetype = 'dashed') +
+    labs(y = ylabel, x = NULL) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 }
+
+pred_plot("meanC", "Mean C") + facet_wrap(~HGM_Class)
+
+pred_plot("vmmi", "Veg. MMI", yran = c(0, 100)) + facet_wrap(~HGM_Class)
+pred_plot("mean_wet", "Mean Wetness") + facet_wrap(~HGM_Class)
+
+
+pred_plot2 <- function(param, ylabel, yran = NA){
+  ints <- params |> filter(resp == param)
+  yrange <-
+    if(any(is.na(yran))){
+      c(floor(min(vmmi_pred[,param])), ceiling(max(vmmi_pred[,param])))
+    } else {yran}
+
+  ggplot(vmmi_pred, aes(x = Year, y = .data[[param]],
+                        fill = HGM_Class, color = HGM_Class,
+                        shape = HGM_Class, size = HGM_Class)) +
+    theme_wet() +
+    geom_line(aes(group = Code), alpha = 0.4, size = 0.2) +
+    geom_point(aes(group = Code), alpha = 0.4) +
+    scale_y_continuous(limits = yrange) +
+    scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
+    scale_color_manual(values = c("Depression" = "#5EC962", #"#70D8CF",
+                                  "Flats" = "#994455",
+                                  "Riverine" = "#3B528B",
+                                  "Slope" = "#FFBF30"),
+                       name = NULL, aesthetics = c("fill", "color")
+                       ) +
+    scale_shape_manual(values = c("Depression" =19,
+                                  "Flats" = 22,
+                                  "Riverine" = 24,
+                                  "Slope" = 25),
+                       name = NULL) +
+    scale_size_manual(values = c("Depression" = 2.5,
+                                  "Flats" = 2,
+                                  "Riverine" = 2,
+                                  "Slope" = 2),
+                       name = NULL) +
+    geom_segment(data = ints,
+                 aes(x = 2012, xend = 2025, y = intercept, yend = intercept,
+                     group = HGM_Class, color = HGM_Class),
+                 linetype = 'dashed', #"F1",
+                 lwd = 1.5,
+                 show.legend = F) +
+    guides(color = guide_legend(override.aes = list(alpha = 1))) +
+    labs(y = ylabel, x = NULL) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+}
+
+pred_plot2("vmmi", "Veg. MMI", yran = c(0, 100))
+pred_plot2("mean_wet", "Mean Wetness")
+pred_plot2("meanC", "Mean C", yran = c(2.5, 6.5))
+pred_plot2("Invasive_Cover", "% Inv. Cov", yran = c(0, 2))
+pred_plot2("Bryophyte_Cover", "% Bryo. Cov")
+pred_plot2("Cover_Tolerant", "% Dist. Tol.")
+
