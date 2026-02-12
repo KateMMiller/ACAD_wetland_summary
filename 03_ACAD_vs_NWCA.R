@@ -13,7 +13,7 @@ theme_wet <- function(){
 }
 
 
-vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv") |>
+vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2025_ACAD_RAM_SENT_GRME.csv") |>
   mutate(site_type = case_when(grepl("R-", Code) ~ "ACAD RAM",
                                grepl("GRME0|GRME10", Code) ~ "ACAD GRME",
                                Code %in% c("BIGH", "DUCK", "FRAZ", "GILM", "GRME", "HEBR",
@@ -64,13 +64,34 @@ ggplot(vmmi_comb,
 ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 4, width = 6)
 
 # Plot stressors
-#++++ ENDED HERE +++++
 #+ Add REF data into this, if I can
-stress_all <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent.csv")
+stress_all1 <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent.csv")
+stress_ref <- read.csv("./results/Stressor_Counts_REF_2011-2021.csv") |>
+  mutate(site_type = "EPA Ref.") |>
+  select(Code = SITE_ID, Year = YEAR, site_type, AA, BUFF)
+
+stress_all <- rbind(stress_all1, stress_ref)
 
 stress_all$site_type_fac <- factor(stress_all$site_type,
-                                  levels = c("EPA Prob.", "ACAD Sent.", "ACAD RAM",
+                                  levels = c("EPA Ref.", "EPA Prob.", "ACAD Sent.", "ACAD RAM",
                                              "ACAD GRME"))#, "ACAD GILM"))
+
+stress_all <- stress_all |>
+  mutate(Code = case_when(grepl("ME-HP301", Code) ~ "DUCK",
+                          grepl("ME-HP302", Code) ~ "WMTN",
+                          grepl("ME-HP303", Code) ~ "BIGH",
+                          grepl("ME-HP304", Code) ~ "GILM",
+                          grepl("ME-HP305", Code) ~ "LITH",
+                          grepl("ME-HP306", Code) ~ "NEMI",
+                          grepl("ME-HP307", Code) ~ "GRME",
+                          grepl("ME-HP308", Code) ~ "HEBR",
+                          grepl("ME-HP309", Code) ~ "HODG",
+                          grepl("ME-HP310", Code) ~ "FRAZ",
+                          TRUE ~ Code))
+
+write.csv(stress_all, "./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent_REF.csv",
+          row.names = F)
+
 head(stress_all)
 
 stress_long <- stress_all |> pivot_longer(cols = c(AA, BUFF), names_to = "loc", values_to = "num_stress")
@@ -81,4 +102,7 @@ ggplot(stress_long, aes(x = site_type_fac, y = num_stress)) +
   labs(x = "Site Disturbance Type", y = "# Stressors") +
   facet_wrap(~loc)
 
-ggsave("./results/Stressor_boxplots.png", width = 8, height = 4)
+ggsave("./results/Stressor_boxplots.png", width = 8, height = 5)
+
+
+

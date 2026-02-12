@@ -262,10 +262,10 @@ pred_plot("vmmi", "Veg. MMI", yran = c(0, 100)) + facet_wrap(~HGM_Class) #+
   #geom_hline(yintercept = thresh[1]) +
   #geom_hline(yintercept = thresh[2])
 
-ggsave("./results/Vegetation_MMI_RAM_facet.png", height = 4, width = 6)
+# ggsave("./results/Vegetation_MMI_RAM_facet.png", height = 4, width = 6)
 
 pred_plot("mean_wet", "Mean Wetness") + facet_wrap(~HGM_Class)
-ggsave("./results/mean_wetness_RAM_facet.png", height = 4, width = 6)
+# ggsave("./results/mean_wetness_RAM_facet.png", height = 4, width = 6)
 
 
 pred_plot2 <- function(param, ylabel, yran = NA){
@@ -311,9 +311,9 @@ pred_plot2 <- function(param, ylabel, yran = NA){
 }
 
 pred_plot2("vmmi", "Veg. MMI", yran = c(0, 100))
-ggsave("./results/Vegetation_MMI_RAM.png", height = 4, width = 6)
+# ggsave("./results/Vegetation_MMI_RAM.png", height = 4, width = 6)
 pred_plot2("mean_wet", "Mean Wetness")
-ggsave("./results/mean_wetness_RAM.png", height = 4, width = 6)
+# ggsave("./results/mean_wetness_RAM.png", height = 4, width = 6)
 pred_plot2("meanC", "Mean C", yran = c(2.5, 6.5))
 pred_plot2("Invasive_Cover", "% Inv. Cov", yran = c(0, 2))
 pred_plot2("Bryophyte_Cover", "% Bryo. Cov")
@@ -342,4 +342,88 @@ ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = loca
 
 acad_uids <- unique(acad_vmmi$UID)
 
+#--- Number of stressors vs VMMI ---
+head(vmmi_comb)
+head(buff_all)
+buff_all <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent_REF.csv")
+table(buff_all$site_type, useNA = 'always')
 
+vmmi_nwca1 <- read.csv("./results/Vegetation_MMI_2011-2021_EPA_allsites.csv")
+
+site_all <- read.csv("./data/comb_data/Site_Information_2011-2021.csv")
+
+vmmi_nwca <- left_join(vmmi_nwca1, site_all |> select(UID, HGM_Class = WETCLS_HGM),
+                        by = c("UID")) |>
+  select(Code = SITE_ID, Year = YEAR, site_type,
+         meanC, bryocov = bryo_cov, invcov = inv_cov,
+         covtol = disttol_cov, vmmi, vmmi_rating, HGM_Class)
+
+vmmi_prob21 <- vmmi_nwca |>
+  filter(grepl("PROB", site_type)) |>
+  filter(Year %in% c(2021, 2022))
+
+vmmi_ref <- vmmi_nwca |>
+  filter(site_type == "REF")
+
+names(vmmi_ref)
+names(vmmi_prob21)
+
+vmmi_acad <- read.csv("./results/Vegetation_MMI_2011-2025_ACAD_RAM_SENT_GRME.csv") |>
+  filter(!grepl("GIME", Code)) |> # drop Gilmore Meadow intensification
+  mutate(site_type = case_when(Panel %in% 1:4 ~ "ACAD RAM",
+                               Panel == -1 ~ "ACAD GRME",
+                               Panel == 0 ~ "ACAD Sent.")) |>
+  select(Code, Year, site_type,
+         meanC, bryocov = Bryophyte_Cover, invcov = Invasive_Cover,
+         covtol = Cover_Tolerant, vmmi, vmmi_rating, HGM_Class) |>
+  filter((site_type == "ACAD RAM" & Year > 2020) |
+           (site_type == "ACAD GRME" & Year == 2025)|
+             (site_type == "ACAD Sent." & Year == 2021))
+
+table(vmmi_acad$Year, vmmi_acad$site_type)
+
+vmmi_comb <- rbind(vmmi_prob21, vmmi_ref, vmmi_acad)
+table(complete.cases(vmmi_comb$vmmi))
+head(buff_all)
+
+vmmi_buff <- full_join(vmmi_comb |> select(-site_type),
+                        buff_all |> select(Code, site_type, Year, AA, BUFF),
+                         by = c("Code", "Year")) |>
+  filter(!is.na(vmmi)) |>
+  filter(!is.na(BUFF))
+
+# cleanup HGM_Class
+vmmi_buff$HGM_Class_clean <-
+  case_when(vmmi_buff$HGM_Class %in% c("Depression", "DEPRESSION", "DPRSS") ~ "Depression",
+            vmmi_buff$HGM_Class %in% c("FLATS", "Flats") ~ "Flats",
+            vmmi_buff$HGM_Class %in% c("FRINGE", "LACUSTRINE") ~ "Lacustrine",
+            vmmi_buff$HGM_Class %in% c("Riverine", "RIVERINE") ~ "Riverine",
+            vmmi_buff$HGM_Class %in% c("SLOPE", "Slope") ~ "Slope",
+            TRUE ~ "Unknown")
+vmmi_buff2 <- vmmi_buff |> filter(!HGM_Class_clean %in% c("Unknown", "Lacustrine"))
+
+table(vmmi_buff$HGM_Class, vmmi_buff$HGM_Class_clean)
+table(vmmi_buff$site_type, useNA = 'always')
+table(complete.cases(vmmi_buff$vmmi))
+
+head(vmmi_buff)
+
+ggplot(vmmi_buff2, aes(x = AA, y = vmmi)) +
+  geom_point() + geom_smooth(method = 'lm') + theme_wet()
+
+ggplot(vmmi_buff2, aes(x = BUFF, y = vmmi)) +
+  geom_point() + geom_smooth(method = "lm") + theme_wet()
+
+buffmod <- lm(vmmi ~ BUFF, data = vmmi_buff2[-34,])
+summary(buffmod)
+plot(buffmod)
+
+aamod_full <- lm(vmmi ~ AA * HGM_Class_clean, data = vmmi_buff2)
+aamod_add <- lm(vmmi ~ AA + HGM_Class_clean, data = vmmi_buff2)
+aamod_HGM <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff2)
+aamod_AA <- lm(vmmi ~ AA, data = vmmi_buff2)
+
+AIC(aamod_full, aamod_add, aamod_HGM, aamod_AA)
+#aamod_add
+summary(aamod_add)
+plot(aamod_add)

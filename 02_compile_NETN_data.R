@@ -85,8 +85,8 @@ spplist_check <- left_join(spplist, epaspp, by = c("PLANTS_Code" = "SYMBOL")) |>
 
 spplist_check # no species differences in COCs between NETN database and EPA CoC list
 
-write.csv(vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_RAM.csv", row.names = F)
-write.csv(vmmi_comb, "./results/Vegetation_MMI_2011-2021_ACAD_RAM_SENT_GRME.csv", row.names = F)
+write.csv(vmmi, "./results/Vegetation_MMI_2011-2025_ACAD_RAM.csv", row.names = F)
+write.csv(vmmi_comb, "./results/Vegetation_MMI_2011-2025_ACAD_RAM_SENT_GRME.csv", row.names = F)
 
 # Coefficient of Wetness
 # RAM
@@ -137,9 +137,9 @@ vmmi_cow_comb <- left_join(vmmi_comb, cow_comb, by = c("Code", "Year")) |>
                                TRUE ~ "UNK"))
 head(vmmi_cow_comb)
 
-write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.csv", row.names = F)
+write.csv(vmmi_cow_comb, "./results/Vegetation_MMI_COW_2011-2025_ACAD_RAM_SENT_GRME.csv", row.names = F)
 vmmi_sf <- st_as_sf(vmmi_cow_comb, coords = c("X", "Y"), crs = 26919)
-st_write(vmmi_sf, "./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.shp")
+st_write(vmmi_sf, "./results/Vegetation_MMI_COW_2011-2025_ACAD_RAM_SENT_GRME.shp")
 
 # Compile Stressors
 locev1 <- left_join(VIEWS_RAM$locations |> select(Code, FWS_Class_Code, HGM_Class, HGM_Sub_Class),
