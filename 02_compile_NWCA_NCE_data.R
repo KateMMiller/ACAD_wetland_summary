@@ -88,7 +88,7 @@ table(plot_sum$Year) # 2011: 45; 2016: 128; 2021: 113; 2022: 11
 table(complete.cases(plot_all$PLOT)) #189 FALSE; 483 TRUE; Lots of PLOT blanks in 2021.
 # Not clear what the blanks in 2021 are about yet - were they not sampled?
 
-write.csv(plot_all, "./data/comb_data/Vegetation_Plot_Location_2011-2021.csv", row.names = F)
+# write.csv(plot_all, "./data/comb_data/Vegetation_Plot_Location_2011-2021.csv", row.names = F)
 
 # Bryophyte cover
 bryo11 <- read.csv("./data/epa_nce/nwca2011_vegtype_grndsurf.csv") |>
@@ -111,7 +111,7 @@ bryo_all1 <- rbind(bryo11, bryo16 |> select(-DATE_COL), bryo21 |> select(-DATE_C
 
 bryo_all <- left_join(bryo_all1, site_nce, by = c("UID", "SITE_ID", "VISIT_NO"))
 
-write.csv(bryo_all, "./data/comb_data/Bryophyte_Cover_2011-2021.csv", row.names = F)
+# write.csv(bryo_all, "./data/comb_data/Bryophyte_Cover_2011-2021.csv", row.names = F)
 
 # Plant Cover Data
 # 2011 plant data
@@ -296,7 +296,7 @@ covcomb_final <- left_join(covcomb2, coc,
 head(covcomb_final)
 table(complete.cases(covcomb_final$SYMBOL)) # all TRUE
 
-write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+# write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
 
 #---- Compiling VMMI from EPA data ----
 
@@ -547,7 +547,7 @@ head(buff_ref) # 62 observations
 nrow(buff_ref)
 ref_uids <- sort(unique(buff_ref$UID))
 
-write.csv(buff_ref, "./data/comb_data/Reference_sites_2011-2021.csv", row.names = F)
+# write.csv(buff_ref, "./data/comb_data/Reference_sites_2011-2021.csv", row.names = F)
 
 # Use full dataset to update floor and ceiling, and buff_ref dataset to update thresholds.
 vmmi1 <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR,
@@ -603,7 +603,7 @@ ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) +
   geom_jitter(alpha = 0.2) +
   labs(x = "Site Disturbance Type", y = "Veg. MMI")
 
-ggsave("./results/VMMI_distribution_site_type.png", height = 4, width = 6)
+# ggsave("./results/VMMI_distribution_site_type.png", height = 4, width = 6)
 
 # Calculate thresholds
 vmmi_ref <- plot_vmmi |> filter(UID %in% ref_uids)
@@ -650,7 +650,7 @@ ggplot(plot_vmmi |> filter(site_type_fac %in% c("REF", "MIN_PROB", "INT_PROB", "
   geom_hline(yintercept = thresh[2], linewidth = 0.75, color = "#696969") +
   labs(y = "Vegetation MMI", x = NULL)
 
-ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 6, height = 4)
+# ggsave("./results/Vegetation_MMI_ratings_HAND_vs_PROB.png", width = 6, height = 4)
 
 # ACAD sites
 acad_sites <- paste(paste0("R", 301:310, collapse = "|"),
@@ -684,12 +684,13 @@ ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = loca
 
 acad_uids <- unique(acad_vmmi$UID)
 
-write.csv(acad_vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_REF.csv", row.names = F)
-write.csv(plot_vmmi |> filter(!UID %in% acad_uids),
-          "./results/Vegetation_MMI_2011-2021_EPA_allsites.csv", row.names = F)
-write.csv(plot_vmmi |> filter(!UID %in% acad_uids) |> filter(SITETYPE == "PROB"),
-          "./results/Vegetation_MMI_2011-2021_EPA_PROB.csv", row.names = F)
+# write.csv(acad_vmmi, "./results/Vegetation_MMI_2011-2021_ACAD_REF.csv", row.names = F)
+# write.csv(plot_vmmi |> filter(!UID %in% acad_uids),
+#           "./results/Vegetation_MMI_2011-2021_EPA_allsites.csv", row.names = F)
+# write.csv(plot_vmmi |> filter(!UID %in% acad_uids) |> filter(SITETYPE == "PROB"),
+#           "./results/Vegetation_MMI_2011-2021_EPA_PROB.csv", row.names = F)
 
+# Compile stressors for 2021 PROB and all year reference plots
 # Stressors in 2021
 buff21_longb <- buff21 |> pivot_longer(cols = c(SOILHD_IMPERVIOUS_SURFACE:WOBSTR_WALL_RIPRAP),
                                       names_to = "Stressor", values_to = "Present") |>
@@ -726,4 +727,44 @@ head(site21)
 buff21_site <- right_join(site21 |> select(UID, SITE_ID, YEAR, SITETYPE),
                           buff21_wide, by = c("UID", "SITE_ID", "YEAR"))
 
-write.csv(buff21_site, "./results/Stressor_Counts_2021_NWCA.csv", row.names = F)
+# write.csv(buff21_site, "./results/Stressor_Counts_2021_NWCA.csv", row.names = F)
+
+# Reference plot stressors
+# 2011
+buff11_sum1b <- buff11_long |>
+  mutate(loc = ifelse(LOCATION == "AA", "AA", "BUFF")) |>
+  group_by(UID, SITE_ID, loc, YEAR, Stressor) |>
+  summarize(stress2 = sum(stress),
+            stress_pa = ifelse(stress2 > 0, 1, 0),
+            .groups = 'drop')
+
+buff11_sum1c <- buff11_sum1b |> group_by(UID, SITE_ID, loc, YEAR) |>
+  summarize(num_stressors = sum(stress_pa),
+            .groups = 'drop')
+buff11_wide <- buff11_sum1c |> pivot_wider(names_from = loc, values_from = num_stressors)
+buff11_wide$YEAR <- as.numeric(buff11_wide$YEAR)
+buff11_site <- right_join(site11 |> select(UID, SITE_ID, SITETYPE),
+                          buff11_wide, by = c("UID", "SITE_ID"))
+
+#2016
+buff16_sum1b <- buff16_long |>
+  mutate(loc = ifelse(LOCATION == "AA", "AA", "BUFF")) |>
+  group_by(UID, SITE_ID, loc, YEAR, Stressor) |>
+  summarize(stress2 = sum(stress),
+            stress_pa = ifelse(stress2 > 0, 1, 0),
+            .groups = 'drop')
+
+buff16_sum1c <- buff16_sum1b |> group_by(UID, SITE_ID, loc, YEAR) |>
+  summarize(num_stressors = sum(stress_pa),
+            .groups = 'drop')
+buff16_wide <- buff16_sum1c |> pivot_wider(names_from = loc, values_from = num_stressors)
+buff16_wide$YEAR <- as.numeric(buff16_wide$YEAR)
+
+buff16_site <- right_join(site16 |> select(UID, SITE_ID, SITETYPE),
+                          buff16_wide, by = c("UID", "SITE_ID"))
+
+buff_all <- rbind(buff11_site, buff16_site, buff21_site)
+buff_ref <- buff_all |> filter(UID %in% ref_uids)
+
+write.csv(buff_ref, "./results/Stressor_Counts_REF_2011-2021.csv", row.names = F)
+write.csv(buff_all, "./results/Stressor_Counts_PROB_HP_2011-2021.csv", row.names = F)
