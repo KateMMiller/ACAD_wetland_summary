@@ -319,3 +319,27 @@ pred_plot2("Invasive_Cover", "% Inv. Cov", yran = c(0, 2))
 pred_plot2("Bryophyte_Cover", "% Bryo. Cov")
 pred_plot2("Cover_Tolerant", "% Dist. Tol.")
 
+# REF sites
+# ACAD sites
+
+acad_vmmi <- read.csv("./results/Vegetation_MMI_2011-2021_ACAD_REF.csv")
+head(acad_vmmi)
+
+table(acad_vmmi$vmmi_rating)
+table(acad_vmmi$vmmi_rating_orig)
+
+ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating, group = local_code)) + theme_wet() +
+  geom_point() + geom_line() +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  facet_wrap(~local_code) +
+  ylim(0, 100)
+
+ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = local_code)) + theme_wet() +
+  geom_point() + geom_line() +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
+  facet_wrap(~local_code) +
+  ylim(0, 100)
+
+acad_uids <- unique(acad_vmmi$UID)
+
+
