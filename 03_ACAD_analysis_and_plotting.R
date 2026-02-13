@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lme4)
 library(broom.mixed)
+library(patchwork)
 
 vmmi_comb <- read.csv("./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME.csv") |>
   mutate(site_type = ifelse(Panel == 0, "SENT", "RAM"))
@@ -400,7 +401,10 @@ vmmi_buff$HGM_Class_clean <-
             vmmi_buff$HGM_Class %in% c("Riverine", "RIVERINE") ~ "Riverine",
             vmmi_buff$HGM_Class %in% c("SLOPE", "Slope") ~ "Slope",
             TRUE ~ "Unknown")
-vmmi_buff2 <- vmmi_buff |> filter(!HGM_Class_clean %in% c("Unknown", "Lacustrine"))
+vmmi_buff2 <- vmmi_buff |> filter(!HGM_Class_clean %in% c("Unknown", "Lacustrine")) |>
+  mutate(stress_total = AA + BUFF)
+
+
 
 table(vmmi_buff$HGM_Class, vmmi_buff$HGM_Class_clean)
 table(vmmi_buff$site_type, useNA = 'always')
@@ -409,7 +413,8 @@ table(complete.cases(vmmi_buff$vmmi))
 head(vmmi_buff)
 
 ggplot(vmmi_buff2, aes(x = AA, y = vmmi)) +
-  geom_point() + geom_smooth(method = 'lm') + theme_wet()
+  geom_point() +
+  geom_smooth(method = 'lm') + theme_wet()
 
 ggplot(vmmi_buff2, aes(x = BUFF, y = vmmi)) +
   geom_point() + geom_smooth(method = "lm") + theme_wet()
@@ -427,3 +432,169 @@ AIC(aamod_full, aamod_add, aamod_HGM, aamod_AA)
 #aamod_add
 summary(aamod_add)
 plot(aamod_add)
+
+vmmi_buff2$HGM_Class <- vmmi_buff2$HGM_Class_clean
+vmmi_buff3 <- vmmi_buff2 |> filter(site_type %in% c("EPA Prob."))
+#  filter(site_type %in% c("EPA Prob.", "ACAD RAM"))
+
+stressmod_full <- lm(vmmi ~ stress_total * HGM_Class_clean, data = vmmi_buff3)
+stressmod_add <- lm(vmmi ~ stress_total + HGM_Class_clean, data = vmmi_buff3)
+stressmod_stress <- lm(vmmi ~ stress_total, data = vmmi_buff3)
+stressmod_hgm <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff3)
+
+round(AIC(stressmod_full, stressmod_add, stressmod_hgm, stressmod_stress),2)
+
+summary(stressmod_add) # R2 = 0.33 #EPA Prob; 0.39 for EPA Prob and ACAD RAM
+plot(stressmod_add) # not bad!
+hist(residuals(stressmod_add)) # not bad!
+
+tidy(stressmod_add)
+intercept <- tidy(stressmod_add)$estimate[1]
+
+stress_est <- data.frame(tidy(stressmod_add)) |>
+  select(term, estimate, std.error) |>
+  mutate(HGM_Class = ifelse(grepl("HGM_Class_clean", term), gsub("HGM_Class_clean", "", term),
+                            ifelse(term == "(Intercept)", "Depression", NA)),
+         beta1 = ifelse(HGM_Class == "Depression", estimate, intercept + estimate),
+         beta = ifelse(is.na(beta1), estimate, beta1),
+         resp = "total_stress_vs_vmmi") |>
+  select(-beta1)
+
+stress_est
+
+head(vmmi_buff2)
+
+stress_p <-
+ggplot(vmmi_buff3, aes(x = stress_total, y = vmmi,
+                       fill = HGM_Class, color = HGM_Class,
+                       shape = HGM_Class, size = HGM_Class)) +
+    theme_wet() +
+    geom_point(alpha = 0.4) +
+    ylim(0, 100) + xlim(0, 15) +
+    scale_color_manual(values = c("Depression" = "#70D8CF",#"#5EC962",
+                                  "Flats" = "#994F00", #"#994455",
+                                  "Riverine" = "#053ac3", #"#3B528B",
+                                  "Slope" = "#FFBF30"),
+                       name = NULL, aesthetics = c("fill", "color")) +
+    scale_shape_manual(values = c("Depression" =19,
+                                  "Flats" = 22,
+                                  "Riverine" = 24,
+                                  "Slope" = 25),
+                       name = NULL) +
+    scale_size_manual(values = c("Depression" = 2.5,
+                                 "Flats" = 2,
+                                 "Riverine" = 2,
+                                 "Slope" = 2),
+                      name = NULL) +
+    guides(color = guide_legend(override.aes = list(alpha = 1))) +
+    labs(y = "Veg MMI", x = "# Stressors", subtitle = "EPA Prob.")
+
+stress_p2 <-
+stress_p +
+  geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Depression"],
+              slope = stress_est$beta[stress_est$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#70D8CF") +
+  geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Flats"],
+              slope = stress_est$beta[stress_est$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#994F00") +
+  geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Riverine"],
+              slope = stress_est$beta[stress_est$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#053ac3") +
+  geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Slope"],
+              slope = stress_est$beta[stress_est$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#FFBF30")
+
+stress_p2
+ggsave("./results/vegmmi_vs_stressors_EPA_NWCA_2021.png", height = 6, width = 8)
+# For every additional stressor, there's a 3 point decrease in mean VMMI
+# Flats have the highest intercept and Riverine have the lowest.
+
+vmmi_buff3 |> group_by(HGM_Class) |>
+  summarize(mean_mmi = mean(vmmi))
+
+# ACAD RAM only
+vmmi_buffa <- vmmi_buff2 |> filter(site_type == "ACAD RAM")
+stressmod_fulla <- lm(vmmi ~ stress_total * HGM_Class_clean, data = vmmi_buffa)
+stressmod_adda <- lm(vmmi ~ stress_total + HGM_Class_clean, data = vmmi_buffa)
+stressmod_stressa <- lm(vmmi ~ stress_total, data = vmmi_buffa)
+stressmod_hgma <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buffa)
+stressmod <- lm(vmmi ~ 1, vmmi_buffa)
+
+round(AIC(stressmod_fulla, stressmod_adda, stressmod_hgma, stressmod_stressa, stressmod),2)
+
+summary(stressmod_adda) # R2 = 0.57
+plot(stressmod_adda) # not bad!
+hist(residuals(stressmod_adda)) # not bad!
+
+tidy(stressmod_adda)
+intercepta <- tidy(stressmod_adda)$estimate[1]
+
+stress_esta <- data.frame(tidy(stressmod_adda)) |>
+  select(term, estimate, std.error) |>
+  mutate(HGM_Class = ifelse(grepl("HGM_Class_clean", term), gsub("HGM_Class_clean", "", term),
+                            ifelse(term == "(Intercept)", "Depression", NA)),
+         beta1 = ifelse(HGM_Class == "Depression", estimate, intercepta + estimate),
+         beta = ifelse(is.na(beta1), estimate, beta1),
+         resp = "total_stress_vs_vmmi") |>
+  select(-beta1)
+
+stress_esta
+
+stress_pa <-
+  ggplot(vmmi_buffa, aes(x = stress_total, y = vmmi,
+                         fill = HGM_Class, color = HGM_Class,
+                         shape = HGM_Class, size = HGM_Class)) +
+  theme_wet() +
+  geom_point(alpha = 0.4) +
+  ylim(0, 100) + xlim(0, 15) +
+  scale_color_manual(values = c("Depression" = "#70D8CF",#"#5EC962",
+                                "Flats" = "#994F00", #"#994455",
+                                "Riverine" = "#053ac3", #"#3B528B",
+                                "Slope" = "#FFBF30"),
+                     name = NULL, aesthetics = c("fill", "color")) +
+  scale_shape_manual(values = c("Depression" =19,
+                                "Flats" = 22,
+                                "Riverine" = 24,
+                                "Slope" = 25),
+                     name = NULL) +
+  scale_size_manual(values = c("Depression" = 2.5,
+                               "Flats" = 2,
+                               "Riverine" = 2,
+                               "Slope" = 2),
+                    name = NULL) +
+  guides(color = guide_legend(override.aes = list(alpha = 1))) +
+  labs(y = "Veg MMI", x = "# Stressors", subtitle = "ACAD RAM")
+
+stress_pa2 <-
+stress_pa +
+  geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Depression"],
+              slope = stress_esta$beta[stress_esta$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#70D8CF") +
+  geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Flats"],
+              slope = stress_esta$beta[stress_esta$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#994F00") +
+  geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Riverine"],
+              slope = stress_esta$beta[stress_esta$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#053ac3") +
+  geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Slope"],
+              slope = stress_esta$beta[stress_esta$term == "stress_total"],
+              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              color = "#FFBF30")
+
+stress_pa2
+ggsave("./results/vegmmi_vs_stressors_ACAD_RAM.png", height = 6, width = 8)
+
+stress_p2 + stress_pa2 + plot_layout(guides = 'collect', axis_titles = 'collect') &
+  theme(legend.position = 'bottom')
+
+ggsave("./results/vegmmi_vs_stressors_EPA_ACAD.png", height = 5, width = 8)
+
+# For every additional stressor, there's a 3 point decrease in mean VMMI
+# Flats have the highest intercept and Riverine have the lowest.
