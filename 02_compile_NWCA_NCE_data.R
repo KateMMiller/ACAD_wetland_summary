@@ -555,7 +555,7 @@ vmmi1 <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, 
                    by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
 
 # Calculate floor and ceiling are the 5% and 95% of all sites for each metric
-buff_vmmi <- left_join(buff_comb |> select(UID, UNIQUE_ID, SITETYPE, SITE_ID, dist),
+buff_vmmi <- left_join(buff_comb |> select(UID, UNIQUE_ID, SITETYPE, SITE_ID, dist, WETCLS_HGM),
                        vmmi1,
                        by = c("UID", "UNIQUE_ID", "SITETYPE", "SITE_ID")) |>
   mutate(site_type = ifelse(SITETYPE == "HAND" & dist == "MIN", "REF", paste0(dist, "_", SITETYPE)))
@@ -597,13 +597,38 @@ plot_vmmi <- plot_vmmi |>
 # Plot the different disturbance categories to check that it makes sense
 plot_vmmi$site_type_fac <- factor(plot_vmmi$site_type, levels = c("REF", "MIN_PROB", "INT_HAND", "INT_PROB",
                                                                   "MOST_HAND", "MOST_PROB"))
+table(plot_vmmi$WETCLS_HGM)
 
-ggplot(plot_vmmi, aes(x = site_type_fac, y = vmmi)) +
+plot_vmmi$HGM_Class <- case_when(plot_vmmi$WETCLS_HGM %in% c("DEPRESSION", "DPRSS") ~ "Depression",
+                                 plot_vmmi$WETCLS_HGM %in% c("FLATS") ~ "Flats",
+                                 plot_vmmi$WETCLS_HGM %in% c("FRINGE", "LACUSTRINE") ~ "Lacustrine",
+                                 plot_vmmi$WETCLS_HGM %in% c("SLOPE") ~ "Slope",
+                                 plot_vmmi$WETCLS_HGM == "RIVERINE" ~ "Riverine",
+                                 plot_vmmi$WETCLS_HGM %in% c("TIDAL", "UND") ~ "Other",
+                                 TRUE ~ "UNK"
+                                 )
+table(plot_vmmi$HGM_Class, plot_vmmi$WETCLS_HGM)
+table(plot_vmmi$WETCLS_HGM, plot_vmmi$YEAR)
+table(plot_vmmi$HGM_Class)
+
+ggplot(plot_vmmi,
+       aes(x = site_type_fac, y = vmmi)) +
   geom_boxplot() + theme_wet() +
   geom_jitter(alpha = 0.2) +
-  labs(x = "Site Disturbance Type", y = "Veg. MMI")
+  labs(x = "Site Disturbance Type", y = "Veg. MMI") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 
 # ggsave("./results/VMMI_distribution_site_type.png", height = 4, width = 6)
+
+ggplot(plot_vmmi |> filter(HGM_Class %in% c("Depression", "Flats", "Lacustrine", "Riverine", "Slope")),
+       aes(x = site_type_fac, y = vmmi)) +
+  geom_boxplot() + theme_wet() +
+  geom_jitter(alpha = 0.2) +
+  labs(x = "Site Disturbance Type", y = "Veg. MMI") +
+  facet_wrap(~HGM_Class) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("./results/VMMI_distribution_site_type_HGM.png", height = 4, width = 6)
 
 # Calculate thresholds
 vmmi_ref <- plot_vmmi |> filter(UID %in% ref_uids)
