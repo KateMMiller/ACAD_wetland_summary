@@ -280,7 +280,7 @@ pred_plot2 <- function(param, ylabel, yran = NA){
                         fill = HGM_Class, color = HGM_Class,
                         shape = HGM_Class, size = HGM_Class)) +
     theme_wet() +
-    geom_line(aes(group = Code), alpha = 0.4, size = 0.2) +
+    geom_line(aes(group = Code), alpha = 0.4, linewidth = 0.2) +
     geom_point(aes(group = Code), alpha = 0.4) +
     scale_y_continuous(limits = yrange) +
     scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
@@ -345,8 +345,8 @@ acad_uids <- unique(acad_vmmi$UID)
 
 #--- Number of stressors vs VMMI ---
 head(vmmi_comb)
-head(buff_all)
 buff_all <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent_REF.csv")
+head(buff_all)
 table(buff_all$site_type, useNA = 'always')
 
 vmmi_nwca1 <- read.csv("./results/Vegetation_MMI_2011-2021_EPA_allsites.csv")
@@ -428,7 +428,7 @@ aamod_add <- lm(vmmi ~ AA + HGM_Class_clean, data = vmmi_buff2)
 aamod_HGM <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff2)
 aamod_AA <- lm(vmmi ~ AA, data = vmmi_buff2)
 
-AIC(aamod_full, aamod_add, aamod_HGM, aamod_AA)
+arrange(AIC(aamod_full, aamod_add, aamod_HGM, aamod_AA), AIC)
 #aamod_add
 summary(aamod_add)
 plot(aamod_add)
