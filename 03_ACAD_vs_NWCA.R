@@ -97,12 +97,12 @@ head(stress_all)
 stress_long <- stress_all |> pivot_longer(cols = c(AA, BUFF), names_to = "loc", values_to = "num_stress")
 
 ggplot(stress_long, aes(x = site_type_fac, y = num_stress)) +
-  geom_boxplot() + theme_wet() +
-  geom_jitter(alpha = 0.2) +
+  geom_boxplot(outliers = F) + theme_wet() +
+  geom_jitter(alpha = 0.2, width = 0.25) +
   labs(x = "Site Disturbance Type", y = "# Stressors") +
-  facet_wrap(~loc)
+  facet_wrap(~loc) +
+  theme(axis.text.x = element_text(size = 7.5))
 
-ggsave("./results/Stressor_boxplots.png", width = 8, height = 5)
-
+ggsave("./results/Stressor_boxplots.png", width = 7, height = 4)
 
 
