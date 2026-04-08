@@ -442,7 +442,8 @@ stressmod_add <- lm(vmmi ~ stress_total + HGM_Class_clean, data = vmmi_buff3)
 stressmod_stress <- lm(vmmi ~ stress_total, data = vmmi_buff3)
 stressmod_hgm <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff3)
 
-round(AIC(stressmod_full, stressmod_add, stressmod_hgm, stressmod_stress),2)
+arrange(round(AIC(stressmod_full, stressmod_add,
+                  stressmod_hgm, stressmod_stress),2), AIC)
 
 summary(stressmod_add) # R2 = 0.33 #EPA Prob; 0.39 for EPA Prob and ACAD RAM
 plot(stressmod_add) # not bad!
@@ -463,11 +464,12 @@ stress_est <- data.frame(tidy(stressmod_add)) |>
 stress_est
 
 head(vmmi_buff2)
+head(vmmi_buff3)
 
 stress_p <-
 ggplot(vmmi_buff3, aes(x = stress_total, y = vmmi,
-                       fill = HGM_Class, color = HGM_Class,
-                       shape = HGM_Class, size = HGM_Class)) +
+                       fill = HGM_Class_clean, color = HGM_Class_clean,
+                       shape = HGM_Class_clean, size = HGM_Class_clean)) +
     theme_wet() +
     geom_point(alpha = 0.4) +
     ylim(0, 100) + xlim(0, 15) +
@@ -493,19 +495,19 @@ stress_p2 <-
 stress_p +
   geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Depression"],
               slope = stress_est$beta[stress_est$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#70D8CF") +
   geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Flats"],
               slope = stress_est$beta[stress_est$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#994F00") +
   geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Riverine"],
               slope = stress_est$beta[stress_est$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#053ac3") +
   geom_abline(intercept = stress_est$beta[stress_est$HGM_Class == "Slope"],
               slope = stress_est$beta[stress_est$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#FFBF30")
 
 stress_p2
@@ -524,7 +526,8 @@ stressmod_stressa <- lm(vmmi ~ stress_total, data = vmmi_buffa)
 stressmod_hgma <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buffa)
 stressmod <- lm(vmmi ~ 1, vmmi_buffa)
 
-round(AIC(stressmod_fulla, stressmod_adda, stressmod_hgma, stressmod_stressa, stressmod),2)
+arrange(round(AIC(stressmod_fulla, stressmod_adda,
+          stressmod_hgma, stressmod_stressa, stressmod),2), AIC)
 
 summary(stressmod_adda) # R2 = 0.57
 plot(stressmod_adda) # not bad!
@@ -573,19 +576,19 @@ stress_pa2 <-
 stress_pa +
   geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Depression"],
               slope = stress_esta$beta[stress_esta$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#70D8CF") +
   geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Flats"],
               slope = stress_esta$beta[stress_esta$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#994F00") +
   geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Riverine"],
               slope = stress_esta$beta[stress_esta$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#053ac3") +
   geom_abline(intercept = stress_esta$beta[stress_esta$HGM_Class == "Slope"],
               slope = stress_esta$beta[stress_esta$term == "stress_total"],
-              linetype = 'dashed', lwd = 1.5, show.legend = F,
+              lwd = 1, show.legend = F,
               color = "#FFBF30")
 
 stress_pa2
