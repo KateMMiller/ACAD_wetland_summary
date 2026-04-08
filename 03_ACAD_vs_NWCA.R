@@ -54,7 +54,7 @@ vmmi_comb$site_type_fac <- factor(vmmi_comb$site_type,
 # Add great meadow sites here, after updating the thresholds for ratings.
 ggplot(vmmi_comb,
        aes(x = site_type_fac, y = vmmi)) +
-  geom_boxplot() + theme_wet() +
+  geom_boxplot(outliers = F) + theme_wet() +
   geom_jitter(alpha = 0.2) +
   labs(x = "Site Disturbance Type", y = "Vegetation MMI") +
   geom_hline(yintercept = thresh[1], linewidth = 0.5, color = "#696969",
@@ -65,7 +65,13 @@ ggsave("./results/VMMI_distribution_site_type_ACAD_EPA.png", height = 4, width =
 
 # Plot stressors
 #+ Add REF data into this, if I can
+table(vmmi_comb$site_type)
+
+
 stress_all1 <- read.csv("./results/Stressor_Counts_NWCAPROB_ACAD_GRME_most_recent.csv")
+stress_prob <- read.csv("./results/Stressor_Counts_PROB_HP_2011-2021.csv") |>
+  mutate(site_type = ifelse(SITETYPE == "PROB"))
+
 stress_ref <- read.csv("./results/Stressor_Counts_REF_2011-2021.csv") |>
   mutate(site_type = "EPA Ref.") |>
   select(Code = SITE_ID, Year = YEAR, site_type, AA, BUFF)

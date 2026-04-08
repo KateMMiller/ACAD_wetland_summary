@@ -789,7 +789,44 @@ buff16_site <- right_join(site16 |> select(UID, SITE_ID, SITETYPE),
                           buff16_wide, by = c("UID", "SITE_ID"))
 
 buff_all <- rbind(buff11_site, buff16_site, buff21_site)
-buff_ref <- buff_all |> filter(UID %in% ref_uids)
+ref_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "REF"]
+prob_min_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "MIN_PROB"]
+hand_int_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "INT_HAND"]
+prob_int_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "INT_PROB"]
+hand_most_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "MOST_HAND"]
+prob_most_uid <- plot_vmmi$UID[plot_vmmi$site_type_fac == "MOST_PROB"]
+
+
+buff_all$site_type2 <- factor(case_when(buff_all$UID %in% ref_uid ~ "REF",
+                                        buff_all$UID %in% prob_min_uid ~ "MIN_PROB",
+                                        buff_all$UID %in% hand_int_uid ~ "INT_HAND",
+                                        buff_all$UID %in% prob_int_uid ~ "INT_PROB",
+                                        buff_all$UID %in% hand_most_uid ~ "MOST_HAND",
+                                        buff_all$UID %in% prob_most_uid ~ "MOST_PROB",
+                                        TRUE ~ "OTH"),
+                               levels = c("REF", "MIN_PROB", "INT_HAND", "INT_PROB",
+                                          "MOST_HAND", "MOST_PROB", "OTH"))
+buff_all$tot_stress <- buff_all$AA + buff_all$BUFF
+buff_all$site_type2[buff_all$site_type2 == "OTH" & buff_all$tot_stress >= 2] <- "MOST_PROB"
+buff_all$site_type2[buff_all$site_type2 == "OTH" & buff_all$tot_stress < 2] <- "INT_PROB"
+
+buff_ref <- buff_all |> filter(UID %in% ref_uids) |> droplevels()
+head(buff_all)
+
+buff_all_long <- buff_all |> select(-tot_stress) |>
+                   pivot_longer(cols = c(AA, BUFF),
+                                names_to = "loc", values_to = "num_stress")
+head(buff_all_long)
+
+ggplot(buff_all_long,
+       aes(x = site_type2, y = num_stress)) +
+  geom_boxplot(outliers = F) + theme_wet() +
+  geom_jitter(alpha = 0.15, width = 0.2) +
+  labs(x = "Site Disturbance Type", y = "# Stressors") +
+  facet_wrap(~loc) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("./results/Stressor_boxplots_EPA.png", width = 8, height = 5)
 
 write.csv(buff_ref, "./results/Stressor_Counts_REF_2011-2021.csv", row.names = F)
-write.csv(buff_all, "./results/Stressor_Counts_PROB_HP_2011-2021.csv", row.names = F)
+write.csv(buff_all |> droplevels(), "./results/Stressor_Counts_EPA_all_2011-2021.csv", row.names = F)

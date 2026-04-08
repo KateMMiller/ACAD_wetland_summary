@@ -223,50 +223,59 @@ wet_est <- data.frame(tidy(wetmod3) |> filter(effect == "fixed")) |> select(term
 
 params <- rbind(vmmi_est, meanC_est, tol_est, bryo_est, wet_est)
 
-pred_plot <- function(param, ylabel, yran = NA){
+pred_plot <- function(param, ylabel, yran = NA, thresh = TRUE){
   ints <- params |> filter(resp == param)
   yrange <-
     if(any(is.na(yran))){
       c(floor(min(vmmi_pred[,param])), ceiling(max(vmmi_pred[,param])))
     } else {yran}
 
-  ggplot(vmmi_pred, aes(x = Year, y = .data[[param]],
-                        fill = HGM_Class, color = HGM_Class, shape = HGM_Class)) +
+  ggplot(vmmi_pred, aes(x = Year, y = .data[[param]])) + #,
+                        #fill = HGM_Class, color = HGM_Class,
+                        #shape = HGM_Class)) +
     theme_wet() +
-    geom_point(aes(group = Code), alpha = 0.5) +
-    geom_line(aes(group = Code), alpha = 0.4) +
+    {if(thresh == TRUE) annotate(geom = "rect",
+                                 xmin = 2011, xmax = 2026, ymin = 0, ymax = 41.48136,
+                                 fill = "#CC6666", alpha = 0.5)} +
+    {if(thresh == TRUE) annotate(geom = "rect",
+                                 xmin = 2011, xmax = 2026, ymin = 41.48136, ymax = 60.94853,
+                                 fill = "#FFF394", alpha = 0.5)} +
+    {if(thresh == TRUE) annotate(geom = "rect",
+                                 xmin = 2011, xmax = 2026, ymin = 60.94853, ymax = 100,
+                                 fill = "#88CF89", alpha = 0.5)} +
+
+    geom_point(aes(group = Code), alpha = 0.6, color = '#474747') +
+    geom_line(aes(group = Code), alpha = 0.6, color = '#474747') +
     scale_y_continuous(limits = yrange) +
     scale_x_continuous(limits = c(2011, 2026), breaks = seq(2011, 2026, 3))+
-    scale_color_manual(values = c("Depression" = "#70D8CF",
-                                  "Flats" = "#994F00",
-                                  "Riverine" = "#053AC3",
-                                  "Slope" = "#FFBF30"),
-                       name = NULL, aesthetics = c("fill", "color")) +
-    scale_shape_manual(values = c("Depression" = 21,
-                                  "Flats" = 22,
-                                  "Riverine" = 24,
-                                  "Slope" = 25),
-                       name = NULL) +
+    # scale_color_manual(values = c("Depression" = "#70D8CF",
+    #                               "Flats" = "#994F00",
+    #                               "Riverine" = "#053AC3",
+    #                               "Slope" = "#FFBF30"),
+    #                    name = NULL, aesthetics = c("fill", "color")) +
+    # scale_shape_manual(values = c("Depression" = 21,
+    #                               "Flats" = 22,
+    #                               "Riverine" = 24,
+    #                               "Slope" = 25),
+    #                    name = NULL) +
     geom_abline(data = ints,
                 aes(intercept = intercept, slope = rep(0, 4),
                     group = HGM_Class),
                 lwd = 0.75, linetype = 'dashed') +
     labs(y = ylabel, x = NULL) +
-    guides(color = guide_legend(override.aes = list(alpha = 1))) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+    #guides(color = guide_legend(override.aes = list(alpha = 1))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))}
 
-}
 
-pred_plot("meanC", "Mean C") + facet_wrap(~HGM_Class)
+pred_plot("vmmi", "Vegetation MMI", yran = c(0, 100)) +
+  facet_wrap(~HGM_Class)
+ggsave("./results/Vegetation_MMI_RAM_facet.png", height = 5, width = 6)
 
-pred_plot("vmmi", "Veg. MMI", yran = c(0, 100)) + facet_wrap(~HGM_Class) #+
-  #geom_hline(yintercept = thresh[1]) +
-  #geom_hline(yintercept = thresh[2])
+pred_plot("meanC", "Mean C", thresh = T) + facet_wrap(~HGM_Class)
 
-# ggsave("./results/Vegetation_MMI_RAM_facet.png", height = 4, width = 6)
 
-pred_plot("mean_wet", "Mean Wetness") + facet_wrap(~HGM_Class)
-# ggsave("./results/mean_wetness_RAM_facet.png", height = 4, width = 6)
+pred_plot("mean_wet", "Mean Wetness", thresh = F) + facet_wrap(~HGM_Class)
+ggsave("./results/mean_wetness_RAM_facet.png", height = 5, width = 6)
 
 
 pred_plot2 <- function(param, ylabel, yran = NA){
@@ -329,11 +338,21 @@ head(acad_vmmi)
 table(acad_vmmi$vmmi_rating)
 table(acad_vmmi$vmmi_rating_orig)
 
-ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating, group = local_code)) + theme_wet() +
+ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating, fill = vmmi_rating,
+                      group = local_code, shape = vmmi_rating)) + theme_wet() +
   geom_point() + geom_line() +
-  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2")) +
-  facet_wrap(~local_code) +
-  ylim(0, 100)
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2"), name = "VMMI rating") +
+  scale_fill_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2"), name = "VMMI rating") +
+  scale_shape_manual(values = c("Poor" = 25, "Fair" = 21, "Good" = 24), name = "VMMI rating") +
+  #facet_wrap(~local_code, ncol = 5) +
+  ylim(0, 100) +
+  labs(y = "Vegetation MMI") +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, color = 'black'),
+        axis.text.y = element_text(color = 'black')) +
+  scale_x_continuous(breaks = c(2011, 2016, 2021), limits = c(2010, 2022))
+
+ggsave("./results/ACAD_SEN_VMMI_over_time.png", width = 9, height = 6)
 
 ggplot(acad_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating_orig, group = local_code)) + theme_wet() +
   geom_point() + geom_line() +
