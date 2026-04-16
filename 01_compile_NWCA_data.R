@@ -1,0 +1,487 @@
+# Download EPA data
+library(rvest)
+library(stringr)
+library(tidyverse)
+# library(tidycensus)
+download_path <- "C:/NETN/R_Dev/ACAD_wetland_summary/data/epa_all/"
+
+#--- Read html on website ---
+page_orig <- "https://www.epa.gov/national-aquatic-resource-surveys/data-national-aquatic-resource-surveys"
+page_read <- read_html(page_orig)
+
+#--- Download data files ---
+# Detect hyperlinks ending in .csv
+csv_list <- page_read |> html_nodes("a") |> html_attr("href") |> str_subset(regex("\\.csv", ignore_case = T))
+nwca_data <- str_subset(csv_list, "nwca")
+nwca_data_names <- sub(".*\\/", "", nwca_data)
+
+# Download all hyperlinks with nwca and .csv in their name
+lapply(seq_along(nwca_data_names), function(x){
+  link = nwca_data[x]
+  filename = nwca_data_names[x]
+  download.file(link, paste0(download_path, filename))
+})
+
+#--- Download metadata files ---
+txt_list <- page_read |> html_nodes("a") |> html_attr("href") |> str_subset("\\.txt")
+nwca_meta <- str_subset(txt_list, "nwca")
+nwca_meta_names <- sub(".*\\/", "", nwca_meta)
+
+#dir.create("./data/metadata/") # added folder for metadata
+lapply(seq_along(nwca_meta_names), function(x){
+  link = nwca_meta[x]
+  filename = nwca_meta_names[x]
+  download.file(link, paste0(download_path, 'metadata/', filename))
+})
+
+#--- Compile plots in NCE, Visit 1, PROB only ---
+# 2011 Data
+siteinfo_2011 <- read.csv("./data/epa_all/nwca11_siteinfo.csv")
+nce_sites_2011 <- siteinfo_2011$UID[siteinfo_2011$RPT_UNIT == "NCE" &
+                                    siteinfo_2011$VISIT_NO == 1 &
+                                    siteinfo_2011$SITETYPE == "PROB"] # dropped ACAD sites
+nce_sites_2011
+csv_list <- list.files(paste0("./data/epa_all/"))
+csv2011a <- csv_list[grepl("nwca11|nwca2011", csv_list)]
+csv2011 <- csv2011a[!grepl("planttaxa", csv2011a)]
+csv2011_name1 <- gsub("nwca11", "nwca2011", csv2011)
+csv2011_name <- gsub("nwca2011_siteinfo", "nwca2011_site_info", csv2011_name1)
+
+invisible(
+lapply(seq_along(csv2011), function(x){
+  cat(csv2011[x], " = ", csv2011_name[x], "\n")
+  dat <- read.csv(paste0("./data/epa_all/", csv2011[x]), fileEncoding = "latin1") |>
+    dplyr::filter(UID %in% nce_sites_2011)
+  write.csv(dat, paste0("./data/epa_nce/", csv2011_name[x]), row.names = F)
+})
+)
+
+# 2016 Data
+siteinfo_2016 <- read.csv("./data/epa_all/nwca-2016-site-information-data_0.csv")
+nce_sites_2016 <- siteinfo_2016$UID[siteinfo_2016$RPT_UNIT == "NCE" &
+                                      siteinfo_2016$VISIT_NO == 1 &
+                                      siteinfo_2016$SITETYPE == "PROB" &
+                                      !is.na(siteinfo_2016$UID)]
+nce_sites_2016
+csv_list <- list.files(paste0("./data/epa_all/"))
+csv2016a <- csv_list[grepl("nwca-2016|nwca_2016|nwca16_", csv_list)]
+csv2016 <- csv2016a[!grepl("plant_|condition_estimates|veg_mmi", csv2016a)]
+csv2016_name1 <- gsub("nwca16|nwca-2016|nwca_2016", "nwca2016", csv2016)
+csv2016_name2 <- gsub("_-_", "_", csv2016_name1)
+csv2016_name3 <- gsub("-", "_", csv2016_name2)
+csv2016_name4 <- gsub("_csv.", ".", csv2016_name3)
+csv2016_name <- gsub("nwca2016_site_information_data_0", "nwca2016_site_info", csv2016_name4)
+
+invisible(
+  lapply(seq_along(csv2016), function(x){
+    cat(csv2016[x], " = ", csv2016_name[x], "\n")
+    dat <- read.csv(paste0("./data/epa_all/", csv2016[x])) |> #, fileEncoding = "latin1") |>
+      dplyr::filter(UID %in% nce_sites_2016)
+    write.csv(dat, paste0("./data/epa_nce/", csv2016_name[x]), row.names = F)
+  })
+)
+
+# 2021 Data
+siteinfo_2021 <- read.csv("./data/epa_all/nwca21_siteinfo-data.csv")
+nce_sites_2021 <- siteinfo_2021$UID[siteinfo_2021$RPT_UNIT == "NCE" &
+                                      siteinfo_2021$VISIT_NO == 1 &
+                                      siteinfo_2021$SITETYPE == "PROB" &
+                                      !is.na(siteinfo_2021$UID)]
+nce_sites_2021
+csv_list <- list.files(paste0("./data/epa_all/"))
+csv2021a <- csv_list[grepl("nwca-2021|nwca_2021|nwca21_", csv_list)]
+csv2021 <- csv2021a[!grepl("plantcval|plantnative|planttaxa|plantwis|condition_estimates|landscape_metrics", csv2021a)]
+csv2021_name1 <- gsub("nwca21|nwca-2021|nwca_2021", "nwca2021", csv2021)
+csv2021_name2 <- gsub("_-_", "_", csv2021_name1)
+csv2021_name3 <- gsub("-", "_", csv2021_name2)
+csv2021_name <- gsub("nwca2021_siteinfo_data", "nwca2021_site_info", csv2021_name3)
+
+invisible(
+  lapply(seq_along(csv2021), function(x){
+    cat(csv2021[x], " = ", csv2021_name[x], "\n")
+    dat <- read.csv(paste0("./data/epa_all/", csv2021[x])) |> #, fileEncoding = "latin1") |>
+      dplyr::filter(UID %in% nce_sites_2021)
+    write.csv(dat, paste0("./data/epa_nce/", csv2021_name[x]), row.names = F)
+  })
+)
+#--- DOWNLOAD NOTES ---
+# 2021 Site info includes records for sites that weren't sampled. Have to drop anything where is.na(UID)
+# Consider using weights set by EPA for each site (TNT_CAT) for small area estimation approach?
+# SITE_ID is the same across years, except the NWCA## changes.
+# The UNIQUE_ID column in siteinfo is what links the same sites across years. It appears that sites are
+# only sampled twice, so if they were sampled in 2011 and 2021, they were dropped in 2021.
+#   - Need to compile plant taxa tables separately
+#   - Dropped nwca_2016_veg_mmi.csv from initial compile, because doesn't include UID (only SITE_ID)
+#   - Dropped ncwa21_landscape_metrics-data.csv because no UID column (only SiteID)
+
+
+#--- Combining data across years ----
+# For the following datasets, I'm row binding data across visits by intersecting the columns each dataset has
+# in common to start with. There may be columns in later datasets that need adding, but I'll deal
+# with that later.
+
+#---- Site Info ----
+site11 <- read.csv("./data/epa_nce/nwca2011_site_info.csv")
+site16 <- read.csv("./data/epa_nce/nwca2016_site_info.csv")
+site21 <- read.csv("./data/epa_nce/nwca2021_site_info.csv")
+
+comm_site_names <- intersect(intersect(names(site11), names(site16)), names(site21))
+
+site_all <- rbind(site11[,comm_site_names], site16[,comm_site_names], site21[,comm_site_names]) |>
+  arrange(UNIQUE_ID, DATE_COL, VISIT_NO)
+
+site_all$Date <- as.POSIXct(site_all$DATE_COL, format = "%m/%d/%Y")
+site_all$Year <- format(site_all$Date, format = "%Y")
+
+site_freq <- data.frame(table(site_all$UNIQUE_ID))
+
+table(site_all$RPT_UNIT) #318 NCE
+table(site_all$VISIT_NO) #318 1
+table(site_all$Year) # 12 in 2022?
+
+write.csv(site_all, "./data/comb_data/Site_Information_2011-2021.csv", row.names = F)
+
+#---- Plant data ----
+# 1. Compile # of plots sampled per site x visit (should be 5 for most)
+# 2. Link C and Native status to species data by GEOD_ID/NWC_CREG code.
+    # Do each visit separately?
+    # Move plant taxa csvs from epa_all into a taxa specific folder for easier compiling
+# 3. Compile Bryophyte cover using the vegetation type data
+
+# Veg plot data
+plot11 <- read.csv('./data/epa_nce/nwca2011_vegplotloc.csv')
+plot16 <- read.csv('./data/epa_nce/nwca2016_veg_plot_location_data.csv')
+plot21 <- read.csv('./data/epa_nce/nwca2021_vegplotloc_wide_data.csv')
+
+# Dates are different formats across years
+plot11$Date <- as.Date(plot11$DATE_COL, format = "%d-%b-%y")
+plot11$Year <- format(plot11$Date, "%Y")
+plot16$Date <- as.Date(plot16$DATE_COL, format = "%m/%d/%Y")
+plot16$Year <- format(plot16$Date, "%Y")
+plot21$Date <- as.Date(plot21$DATE_COL, format = "%d-%b-%y")
+plot21$Year <- format(plot21$Date, "%Y")
+
+comm_p_names <- intersect(intersect(names(plot11), names(plot16)), names(plot21))
+
+plot_all <- rbind(plot11[,comm_p_names], plot16[,comm_p_names], plot21[,comm_p_names]) |>
+  arrange(SITE_ID, Year, VISIT_NO)
+
+plot_sum <- plot_all |> group_by(UID, SITE_ID, VISIT_NO, Date, Year) |>
+  summarize(num_plots = sum(!is.na(PLOT), na.rm = T),
+            miss_plots = sum(is.na(PLOT)),
+            .groups = "drop")
+
+table(plot_sum$Year) # 2011: 27; 2016: 94; 2021: 96; 2022: 12
+table(complete.cases(plot_all$PLOT)) #159 FALSE; 313 TRUE; Lots of PLOT blanks in 2021.
+# Not clear what the blanks in 2021 are about yet - were they not sampled?
+
+write.csv(plot_all, "./data/comb_data/Vegetation_Plot_Location_2011-2021.csv", row.names = F)
+
+# Bryophyte cover
+bryo11 <- read.csv("./data/epa_nce/nwca2011_vegtype_grndsurf.csv") |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES)
+bryo11$YEAR <- 2011
+
+bryo16 <- read.csv('./data/epa_nce/nwca2016_vegetation_type_data.csv') |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES, DATE_COL)
+bryo16$YEAR <- format(as.Date(bryo16$DATE_COL, format = "%m/%d/%Y"), "%Y")
+table(bryo16$YEAR, useNA = 'always')
+
+bryo21 <- read.csv('./data/epa_nce/nwca2021_vegtype_wide_data.csv') |>
+  select(UID, SITE_ID, VISIT_NO, PLOT, BRYOPHYTES, DATE_COL)
+head(bryo21)
+bryo21$YEAR <- format(as.Date(bryo21$DATE_COL, "%d-%b-%y"), "%Y")
+table(bryo21$YEAR, useNA = 'always')
+
+bryo_all <- rbind(bryo11, bryo16 |> select(-DATE_COL), bryo21 |> select(-DATE_COL))
+
+write.csv(bryo_all, "./data/comb_data/Bryophyte_Cover_2011-2021.csv", row.names = F)
+
+# Plant Cover Data
+# 2011 plant data
+cov11a <- read.csv("./data/epa_nce/nwca2011_plant_pres_cvr.csv") |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+site11a <- read.csv("./data/epa_nce/nwca2011_site_info.csv") |>
+  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+cov11b <- left_join(cov11a, site11a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
+head(cov11b)
+
+# Bring in C, native, wetland indicator status
+taxa11 <- read.csv("./data/taxa_lists/nwca2011_planttaxa.csv", fileEncoding = "latin1")
+cnat11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_cc_natstat.csv', fileEncoding = "latin1")
+wis11 <- read.csv('./data/taxa_lists/nwca2011_planttaxa_wis.csv', fileEncoding = 'latin1')
+
+cov11t <- left_join(cov11b, taxa11 |> select(SPECIES_NAME_ID, USDA_NAME, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION),
+                    by = c("SPECIES_NAME_ID"))
+
+cov11cnat <- left_join(cov11t, cnat11 |> select(-PUBLICATION_DATE),
+                       by = c("SPECIES_NAME_ID", "USDA_NAME", "NWC_CREG11" = "GEOG_ID"))
+cov11wis <- left_join(cov11cnat, wis11 |> select(-PUBLICATION_DATE),
+                      by = c("SPECIES_NAME_ID", "USDA_NAME", "COE_REG_ID" = "GEOG_ID")) |>
+  rename(NWCA_NAME = USDA_NAME) |>
+  mutate(SYMBOL = NA_character_)
+
+head(cov11wis) # future years use different name.
+
+# cov11wis ready to join with remaining years.
+
+# 2016 plant data
+cov16a <- read.csv('./data/epa_nce/nwca2016_plant_species_cover_height_data.csv') |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, LINE, PLOT,
+         NWC_CREG16, SPECIES, SPECIES_NAME_ID, COVER, HEIGHT, NE, SW)
+
+site16a <- read.csv("./data/epa_nce/nwca2016_site_info.csv") |>
+  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, NWC_CREG11, NWC_CREG16)
+cov16b <- left_join(cov16a, site16a, by = c("UID", "SITE_ID", "UNIQUE_ID", "NWC_CREG16"))
+head(cov16b)
+
+# Bring in C, native, wetland indicator status
+taxa16 <- read.csv("./data/taxa_lists/nwca_2016_plant_taxa.csv")
+c16 <- read.csv("./data/taxa_lists/nwca_2016_plant_cvalues.csv")
+nat16 <- read.csv('./data/taxa_lists/nwca_2016_plant_native_status.csv')
+wis16 <- read.csv('./data/taxa_lists/nwca_2016_plant_wis.csv')
+
+cov16t <- left_join(cov16b, taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION, SYMBOL = ACCEPTED_SYMBOL),
+                    by = c("SPECIES_NAME_ID"))
+cov16nat <- left_join(cov16t, nat16 |> select(-PUBLICATION_DATE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG11" = "GEOG_ID"))
+cov16c <- left_join(cov16nat, c16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
+cov16wis <- left_join(cov16c, wis16 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+
+head(cov16wis) # 2016 data ready to join with other years (some columns )
+
+# 2021 plant data
+cov21a <- read.csv('./data/epa_nce/nwca2021_plant_wide_data.csv')
+cov21a$YEAR <- format(as.Date(cov21a$DATE_COL, format = "%d-%b-%y"), "%Y")
+
+site21a <- read.csv("./data/epa_nce/nwca2021_site_info.csv") |>
+  select(UID, SITE_ID, UNIQUE_ID, LAT_DD83, LON_DD83, COE_REG_ID, PSTL_CODE, COE_REG_ID,
+         NWC_CREG16)
+
+cov21b <- left_join(cov21a, site21a, by = c("UID", "SITE_ID", "UNIQUE_ID", "PSTL_CODE"))
+
+# Bring in C, native, wetland indicator status
+taxa21 <- read.csv("./data/taxa_lists/nwca21_planttaxa-data.csv")
+c21 <- read.csv("./data/taxa_lists/nwca21_plantcval-data.csv")
+nat21 <- read.csv('./data/taxa_lists/nwca21_plantnative-data.csv')
+wis21 <- read.csv('./data/taxa_lists/nwca21_plantwis-data.csv')
+
+cov21t <- left_join(cov21b, taxa21 |> select(SPECIES_NAME_ID, NWCA_NAME, ORDER, FAMILY, GENUS,
+                                             GROWTH_HABIT, DURATION, SYMBOL = ACCEPTED_SYMBOL),
+                    by = c("SPECIES_NAME_ID"))
+cov21nat <- left_join(cov21t, nat21 |> select(-PUBLICATION_DATE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "PSTL_CODE" = "GEOG_ID"))
+cov21c <- left_join(cov21nat, c21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                    by = c("SPECIES_NAME_ID", "NWCA_NAME", "NWC_CREG16" = "GEOG_ID"))
+cov21wis <- left_join(cov21c, wis21 |> select(-PUBLICATION_DATE, -GEOG_TYPE),
+                      by = c("SPECIES_NAME_ID", "NWCA_NAME", "COE_REG_ID" = "GEOG_ID"))
+
+head(cov21wis) # 2021 data ready to join with other years (some columns )
+
+# column name updates before combining
+cov11 <- cov11wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
+                            SPECIES_NAME_ID, SYMBOL,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CC, NATSTAT = NWCA_NATSTAT, WIS, ECOIND, ALIEN)
+
+cov16 <- cov16wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            SPECIES_NAME_ID, SYMBOL,
+                            STATE = NWC_CREG11, CREG = NWC_CREG16, WISREG = COE_REG_ID,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
+
+cov21 <- cov21wis |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83, YEAR, VISIT_NO, PLOT,
+                            STATE = PSTL_CODE, CREG = NWC_CREG16, WISREG = COE_REG_ID,
+                            SPECIES_NAME_ID, SYMBOL,
+                            NWCA_NAME, COVER, HEIGHT, NE, SW,
+                            ORDER, FAMILY, GENUS, GROWTH_HABIT, DURATION,
+                            CVAL = NWCA_CVAL, NATSTAT = NWCA_NATSTAT, WIS, ECOIND = ECOIND1, ALIEN)
+
+covcomb <- rbind(cov11, cov16, cov21)
+covcomb$NWCA_NAME <- gsub("×", "x", covcomb$NWCA_NAME)
+
+head(covcomb)
+
+table(cov11$STATE)
+table(cov11$CREG)
+table(cov11$WISREG)
+
+table(cov16$STATE)
+table(cov16$CREG)
+table(cov16$WISREG)
+
+table(cov21$STATE)
+table(cov21$CREG)
+table(cov21$WISREG)
+
+table(covcomb$STATE, covcomb$YEAR) # Confirmed in site info that 2011 only had target sites in IA and NJ
+table(covcomb$CREG, covcomb$YEAR)
+table(covcomb$WISREG, covcomb$YEAR)
+
+# Compile and add Invasive column to plant cover data.
+# all species recorded in plant cover data.
+spplist <- covcomb |> select(SPECIES_NAME_ID, SYMBOL, NWCA_NAME, NATSTAT, ALIEN) |> unique() |>
+  group_by(SPECIES_NAME_ID, NWCA_NAME, NATSTAT, ALIEN) |>
+  fill(SYMBOL, .direction = "downup") |> unique()
+
+spp_numbers <- unique(spplist$SPECIES_NAME_ID)
+
+taxa_comb <- rbind(taxa11 |> select(SPECIES_NAME_ID, NWCA_NAME = USDA_NAME) |> mutate(year = 2011, SYMBOL = NA_character_),
+                   taxa16 |> select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL = ACCEPTED_SYMBOL) |> mutate(year = 2016),
+                   taxa21 |> select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL = ACCEPTED_SYMBOL) |> mutate(year = 2021))
+
+taxa_comb$NWCA_NAME <- gsub("×", "x", taxa_comb$NWCA_NAME)
+
+taxa_wide <- taxa_comb |> pivot_wider(names_from = year, values_from = SYMBOL, names_prefix = "yr") |>
+  mutate(SYMBOL = ifelse(!is.na(yr2021), yr2021, yr2016)) |>
+  filter(SPECIES_NAME_ID %in% spp_numbers) |>
+  select(SPECIES_NAME_ID, NWCA_NAME, SYMBOL)
+
+table(complete.cases(taxa_wide$SYMBOL)) # none missing a symbol
+taxa_wide |> group_by(SPECIES_NAME_ID) |> summarize(num = n()) |> filter(num>1) # no duplicate IDs
+
+# read in invasive species list downloaded from USDA Plants
+# % Cover Invasive - Using USDA PLANTS database to establish invasive status.
+#      https://plants.usda.gov/noxious-invasive-search
+# Doesn't appear that that state-level designations are all that helpful. Going to go with,
+# if it's invasive in any state in the reporting region, it's invasive in the analysis. I
+# can't think of an example where that isn't true.
+#
+# Invasive list needs the USDA symbol to be joined to the species in the cover data. However,
+# the 2011 taxa tables don't include the symbol. I'm using the taxa 2016 and 2021 tables to
+# fill in as much of those holes, then will manually add the missing species.
+
+inv_spp1 <- read.csv("./data/taxa_lists/USDA_PLANTS_Invasive_Species_By_State_20251217_clean.csv") |>
+  select(SYMBOL = Accepted.Symbol)
+
+# Pruning by hand - species to drop from invasive list
+drop_spp <- c("BIDEN", "CALLI6", "CASE13", "CRATA", "EPILO", "GEUM", "IMPAT", "2UNK",
+              "MALUS", "MEAR4", "OXALI", "POPR", "RUHI", "RUID", "THDA", "URDI", "VIOP", "VIRE7")
+
+inv_spp <- inv_spp1 |> filter(!SYMBOL %in% drop_spp) |> unique()
+
+taxa_wide$INVASIVE <- ifelse(taxa_wide$SYMBOL %in% inv_spp$SYMBOL, 1, 0)
+write.csv(taxa_wide, "./data/comb_data/Plant_Species_List_2011-2021.csv")
+
+# Add invasive column to plant cover data
+covcomb_final <- left_join(covcomb |> select(-SYMBOL),
+                           taxa_wide |> select(SPECIES_NAME_ID, SYMBOL, INVASIVE),
+                           by = c("SPECIES_NAME_ID")) |>
+  filter(!is.na(SPECIES_NAME_ID)) # drops 2 empty records from 2021
+head(covcomb_final)
+
+write.csv(covcomb_final, "./data/comb_data/Plant_Cover_2011-2021.csv", row.names = F)
+
+#---- Compiling VMMI from EPA data ----
+
+# Compile plot list to left_join results with
+plot_list1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, LAT_DD83, LON_DD83,
+                                      YEAR, VISIT_NO, STATE, CREG, WISREG) |>
+  unique() |> arrange(UNIQUE_ID)
+
+plot_list2 <- left_join(plot_list1, plot_sum |> select(-Date),
+                       by = c("UID", "SITE_ID", "VISIT_NO", c("YEAR" = "Year")))
+head(plot_list)
+
+# Fix plots_missing plot count from plot_sum
+#miss_plot_num <- plot_list2 |> filter(is.na(num_plots)) |> select(UID, UNIQUE_ID, SITE_ID, YEAR)
+
+# count plots from cover data
+num_plots1 <- covcomb_final |> select(UID, UNIQUE_ID, SITE_ID, YEAR, PLOT) |> unique() |>
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR) |>
+  summarize(num_plots_cov = sum(!is.na(PLOT)), .groups = 'drop')
+
+#fill_plots <- left_join(miss_plot_num, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR"))
+
+plot_list3 <- left_join(plot_list2, num_plots1, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR")) |>
+  mutate(num_plots = ifelse(is.na(num_plots), num_plots_cov, num_plots),
+         plot_diff = ifelse(abs(num_plots - num_plots_cov) %in% c(2, 3, 4), "XX", NA_character_))
+
+# It appears that the plot tables don't always include data on number of plots, so I can't
+# use that to sum up the number of plots per site. The cover data is pretty consistent, with only
+# one site not having 5 veg plots. Going to just use that to sum up the number of veg plots for
+# site level averaging.
+
+plot_list <- plot_list3 |> select(UID:WISREG, num_vplots = num_plots_cov)
+head(plot_list) # df for left_join
+
+# % Bryophyte
+bryo_sum <- bryo_all |> group_by(UID, SITE_ID, VISIT_NO, YEAR) |>
+  summarize(bryo_sum = sum(BRYOPHYTES, na.rm = T), .groups = 'drop')
+
+plot_bryo <- left_join(plot_list, bryo_sum, by = c("UID", "SITE_ID", "VISIT_NO", "YEAR")) |>
+  mutate(bryo_cov = bryo_sum/num_vplots) |> select(-bryo_sum)
+head(plot_bryo)
+
+# Mean C
+head(covcomb_final)
+table(covcomb_final$CVAL, useNA = 'always')
+
+# Calculating meanC by making a list of all species on the plot, then calc. C,
+# so species found in all 5 veg plots don't count more in the mean C than
+# rare species that only occur once
+cval <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL)) |>
+  filter(!is.na(CVAL_num)) |>
+  select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO, CVAL_num) |> unique() |>
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO) |>
+  summarize(meanC = mean(CVAL_num), .groups = 'drop')
+
+#ignore NAs warning. Used to intentionally drop non-numeric values
+head(cval)
+head(plot_bryo)
+
+plot_br_cv <- left_join(plot_bryo, cval, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO"))
+
+# % Cover Disturbance Tolerant & Invasive
+dist_inv_sum1 <- covcomb_final |> mutate(CVAL_num = as.numeric(CVAL)) |>
+  filter(!is.na(CVAL_num)) |>
+  mutate(cov_disttol = ifelse(CVAL_num <= 4, COVER, 0),
+         cov_inv = ifelse(INVASIVE == 1, COVER, 0))
+
+dist_inv_sum <- dist_inv_sum1 |>
+  group_by(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO) |>
+  summarize(disttol_sum = sum(cov_disttol),
+            invcov_sum = sum(cov_inv),
+            .groups = 'drop')
+
+head(dist_inv_sum1)
+dist_inv_plot <- left_join(plot_list, dist_inv_sum, by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO")) |>
+  mutate(disttol_cov = disttol_sum/num_vplots,
+         inv_cov = invcov_sum/num_vplots)
+
+plot_vmmi <- left_join(plot_br_cv, dist_inv_plot |> select(UID, UNIQUE_ID, SITE_ID, YEAR, VISIT_NO,
+                                                           disttol_cov, inv_cov),
+                       by = c("UID", "UNIQUE_ID", "SITE_ID", "YEAR", "VISIT_NO")) |>
+  mutate(meanC_adj1 = ifelse(meanC < 3.015, 3.015, ifelse(meanC > 7.346, 7.346, meanC)),
+         meanC_adj2 = ((meanC_adj1 - 3.015)/(7.346 - 3.015)) * 10,
+
+         covtol_adj1 = ifelse(disttol_cov < 0.386, 0, ifelse(disttol_cov > 136.645, 136.645, disttol_cov)),
+         covtol_adj2 = ((((covtol_adj1 - 0.386)/(136.645 - 0.386))*10) - 10) * -1,
+
+         invcov_adj1 = ifelse(inv_cov > 38.45, 38.45, inv_cov),
+         invcov_adj2 = ((((invcov_adj1/38.45) * 10) - 10))*-1,
+
+         bryo_adj1 = ifelse(bryo_cov > 98.48, 98.48, bryo_cov),
+         bryo_adj2 = (bryo_adj1/98.48) * 10,
+
+         vmmi = (((meanC_adj2 + covtol_adj2 + invcov_adj2 + bryo_adj2) - 0.389)/(40 - 0.389)) * 100,
+         vmmi_rating = ifelse(vmmi > 65.22746, "Good", ifelse(vmmi < 52.785, "Poor", "Fair"))
+  )
+
+head(plot_vmmi)
+
+table(plot_vmmi$STATE, plot_vmmi$vmmi_rating)
+
+ggplot(plot_vmmi, aes(x = YEAR, y = vmmi, color = vmmi_rating)) + theme_bw() +
+  geom_point() + #facet_wrap(~STATE) +
+  scale_color_manual(values = c("Poor" = "indianred", "Fair" = "gold", "Good" = "green2"))
+
+write.csv(plot_vmmi, "./data/comb_data/Vegetation_MMI_2011-2021.csv", row.names = F)

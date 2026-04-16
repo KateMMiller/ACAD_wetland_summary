@@ -9,6 +9,19 @@ vmmi_comb <- read.csv("./results/Vegetation_MMI_COW_2011-2021_ACAD_RAM_SENT_GRME
 vmmi_ram <- vmmi_comb |> filter(grepl("R-", Code))
 vmmi_grme <- vmmi_comb |> filter(grepl("GR", Code))
 
+GRME <- rbind(vmmi_ram |> filter(Code %in% c("R-04", "R-13", "R-19")) |> filter(Year > 2020),
+              vmmi_comb |> filter(grepl("GRME", Code)) |> filter(Year == 2025))|>
+  mutate(site = "GRME")
+
+
+GILM <- rbind(vmmi_ram |> filter(Code == "R-31") |> filter(Year > 2020),
+              vmmi_comb |> filter(Code == "GILM") |> filter(Year > 2020),
+              vmmi_comb |> filter(grepl("GIME", Code)) |> filter(Year == 2025)) |>
+  mutate(site = "GILM")
+
+comb_gm <- rbind(GRME, GILM)
+write.csv(comb_gm, "./results/VMMI_GRME_vs_GILM.csv", row.names = F)
+
 thresh <- c(41.48136, 60.94853)
 
 theme_wet <- function(){
@@ -448,6 +461,7 @@ aamod_HGM <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff2)
 aamod_AA <- lm(vmmi ~ AA, data = vmmi_buff2)
 
 arrange(AIC(aamod_full, aamod_add, aamod_HGM, aamod_AA), AIC)
+
 #aamod_add
 summary(aamod_add)
 plot(aamod_add)
@@ -460,9 +474,10 @@ stressmod_full <- lm(vmmi ~ stress_total * HGM_Class_clean, data = vmmi_buff3)
 stressmod_add <- lm(vmmi ~ stress_total + HGM_Class_clean, data = vmmi_buff3)
 stressmod_stress <- lm(vmmi ~ stress_total, data = vmmi_buff3)
 stressmod_hgm <- lm(vmmi ~ HGM_Class_clean, data = vmmi_buff3)
+stressmod_null <- lm(vmmi ~ 1, data = vmmi_buff3)
 
 arrange(round(AIC(stressmod_full, stressmod_add,
-                  stressmod_hgm, stressmod_stress),2), AIC)
+                  stressmod_hgm, stressmod_stress, stressmod_null),2), AIC)
 
 summary(stressmod_add) # R2 = 0.33 #EPA Prob; 0.39 for EPA Prob and ACAD RAM
 plot(stressmod_add) # not bad!
